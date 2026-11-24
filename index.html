@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Troupe Feis Results</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+:root{
+  --bg:#f5f7f5; --surface:#ffffff; --ink:#14231f; --muted:#5b6b66; --line:#d8e0dc;
+  --accent:#0f6b4f; --accent-ink:#ffffff; --gold:#9a6b0a; --gold-bg:#fbf1d9; --bad:#b3261e;
+  --head:'Space Grotesk',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1815; --surface:#17241f; --ink:#e8f0ed; --muted:#9bada7; --line:#2a3b35;
+  --accent:#4cc79b; --accent-ink:#06130e; --gold:#e8b84a; --gold-bg:#3a2e10; --bad:#ff8a80; color-scheme:dark}}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-bottom:48px}
+h1,h2,h3{font-family:var(--head);margin:0}
+h1{font-size:1.25rem} h2{font-size:1.2rem} h3{font-size:1rem}
+.wrap{max-width:880px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;padding-block:10px}
+.bar .who{margin-left:auto;display:flex;gap:12px;align-items:center;font-size:.8rem;color:var(--muted)}
+nav{display:flex;gap:4px;overflow-x:auto;padding-bottom:8px}
+nav button{white-space:nowrap}
+button,select,input{font:inherit;color:inherit}
+button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:40px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.tab[aria-current="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.link{border:0;background:none;padding:2px 0;min-height:0;color:var(--accent);text-decoration:underline}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px;width:100%;min-width:0}
+label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted);font-weight:500;letter-spacing:.02em}
+main{padding-block:20px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.stack{display:flex;flex-direction:column;gap:12px}
+.between{justify-content:space-between;align-items:center}
+.muted{color:var(--muted);font-size:.85rem}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;white-space:nowrap}
+.pill{display:inline-block;white-space:nowrap;border-radius:999px;padding:1px 9px;font-size:.78rem;font-weight:600;background:var(--bg);border:1px solid var(--line)}
+.pill.win{background:var(--gold-bg);color:var(--gold);border-color:var(--gold)}
+.dance-row{display:grid;grid-template-columns:minmax(130px,1.2fr) repeat(4,minmax(0,1fr));gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
+.dance-row b{font-family:var(--head);font-weight:500}
+.dance-row>div:first-child{align-self:center}
+@media (max-width:640px){.dance-row{grid-template-columns:1fr 1fr}.dance-row>div:first-child{grid-column:1/-1}}
+.msg{padding:10px 12px;border-radius:8px;background:var(--gold-bg);border:1px solid var(--gold)}
+.ok{color:var(--accent);font-weight:600}
+.err{color:var(--bad)}
+.empty{text-align:center;padding:28px 12px;color:var(--muted)}
+.narrow{max-width:520px;margin:0 auto;width:100%}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap"><p class="muted" style="padding-block:24px">Loading…</p></div></div>
+<noscript><div class="wrap"><p>This page needs JavaScript to show feis results.</p></div></noscript>
+
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwbylThiV57qjO_RVWM8LTl66FqBgT2MXBL7uQRY6_Jvu3pAvLUOsitk13MnJDAxEdS/exec";</script>
+<script>
+(function(){
+'use strict';
+var API_URL = window.API_URL;
+var DANCES=['Reel','Light Jig','Slip Jig','Single Jig','Treble Jig','Hornpipe','Treble Reel','Traditional Set Dance','Modern Set Solo','Premiere Prize','Award Reel','Open Event','Preliminary Champion'];
+var ELIG_DANCES=['Open Event','Preliminary Champion'];
+var ELIG_VALUES=['Yes','No','Placed out'];
+var GRADE_EXCLUDED=['Award Reel','Open Event','Preliminary Champion'];
+var LEVELS=['Beginner A','Beginner B','Intermediate','Open Champion'];
+var FEIS_TYPES={grade:'Grade feis',championship:'Major championship'};
+
+var S={names:[],mode:null,auth:null,data:null,tab:null,dancerId:null,year:null,adminFeisId:null,
+  form:{feisId:'',number:'',rows:{},loadedKey:'',status:'',ok:false},
+  busy:false,error:'',loginMsg:''};
+
+/* ---------- helpers ---------- */
+function h(tag,props){
+  var e=document.createElement(tag),p=props||{};
+  Object.keys(p).forEach(function(k){var v=p[k];
+    if(k==='class')e.className=v;
+    else if(k.indexOf('on')===0)e.addEventListener(k.slice(2),v);
+    else if(k==='value')e.value=v==null?'':v;
+    else if(v!==false&&v!=null)e.setAttribute(k,v===true?'':v);});
+  for(var i=2;i<arguments.length;i++){[].concat(arguments[i]).forEach(function(c){
+    if(c==null||c===false)return;
+    e.append(c&&c.nodeType?c:document.createTextNode(String(c)));});}
+  return e;
+}
+function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
+function byId(list,id){for(var i=0;i<list.length;i++)if(list[i].id===id)return list[i];return null;}
+function fmtDate(d){if(!d)return'';var p=d.split('-');if(p.length!==3)return d;
+  return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function safeUrl(u){return /^https:\/\//i.test(u||'')?u:null;}
+function ordinal(n){n=+n;if(!n)return'';var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}return null;}
+function dancesFor(feis){return feis&&feis.type==='grade'?DANCES.filter(function(d){return GRADE_EXCLUDED.indexOf(d)<0;}):DANCES;}
+function seasonOf(d){var y=+(d||'').slice(0,4),m=+(d||'').slice(5,7);return m>=8?y:y-1;}
+function seasonLabel(y){return y+'–'+String(y+1).slice(2);}
+function minComp(){return +(S.data&&S.data.settings&&S.data.settings.minCompetitors)||6;}
+/* Studio advancement rules: a win is 1st place in a group of at least minComp(). If the group size was never entered, a 1st still counts. */
+var RULES={
+  winsNeeded:{'Beginner A':1,'Beginner B':2,'Intermediate':2},
+  prelimLimit:3,
+  stepDances:['Reel','Light Jig','Slip Jig','Single Jig','Treble Jig','Hornpipe','Treble Reel','Traditional Set Dance'],
+  premierAdvances:['Slip Jig','Traditional Set Dance']
+};
+function levelOf(d,dn){return (d.levels&&d.levels[dn])||'';}
+function isStep(l){return !!RULES.winsNeeded[l];}
+function advStatus(d){
+  var mine=S.data.results.filter(function(r){return r.dancerId===d.id;});
+  var ready=[],progress=[],viaPremier=[],placedOut=[];
+  var premierWins=mine.filter(function(r){return r.dance==='Premiere Prize'&&isWin(r);}).length;
+  RULES.stepDances.forEach(function(dn){
+    var lv=levelOf(d,dn);if(!isStep(lv))return;
+    var need=RULES.winsNeeded[lv];
+    var c=mine.filter(function(r){return r.dance===dn&&isWin(r)&&(r.level||lv)===lv;}).length;
+    if(c>=need)ready.push({dance:dn,level:lv});
+    else if(premierWins&&RULES.premierAdvances.indexOf(dn)>=0){ready.push({dance:dn,level:lv,viaPremier:true});}
+    else if(c>0)progress.push(dn+' '+c+' of '+need);
+  });
+  var pe=levelOf(d,'Preliminary Champion');
+  var prelimWins=(+d.priorPrelimWins||0);
+  var seen=mine.filter(function(r){return r.dance==='Preliminary Champion'&&isWin(r);}).length;
+  prelimWins=Math.max(prelimWins,seen);
+  return {ready:ready,progress:progress,premier:premierWins,prelim:prelimWins,prelimStatus:pe};
+}
+function isWin(r){
+  if(r.status&&r.status!=='placed')return false;
+  if(+r.place!==1)return false;
+  if(r.competitors===''||r.competitors==null)return true;
+  return +r.competitors>=minComp();
+}
+function placeText(r){
+  if(r.status==='sick')return 'Registered – did not dance';
+  if(r.status==='dnp')return 'Did not place';
+  if(r.status==='missed')return 'Missed the dance';
+  return ordinal(r.place)||'—';
+}
+function isAdmin(){return S.mode==='admin';}
+function authPayload(){return isAdmin()?{password:S.auth.password}:{code:S.auth.code};}
+function sortName(a,b){return (a.name||'').localeCompare(b.name||'');}
+
+async function api(action,payload){
+  if(!API_URL||API_URL.indexOf('script.google.com')<0)throw new Error('This page isn’t connected to the Sheet yet. Open it from the web app link.');
+  var res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:action},payload||{}))});
+  var j;try{j=await res.json();}catch(e){throw new Error('Couldn’t read the server’s answer. Try again.');}
+  if(!j.ok)throw new Error(j.error||'Something went wrong.');
+  return j.data;
+}
+async function run(fn){
+  S.busy=true;S.error='';
+  try{return await fn();}catch(e){S.error=e.message||'Something went wrong.';return null;}
+  finally{S.busy=false;}
+}
+
+/* ---------- session ---------- */
+async function boot(){
+  var saved=null;try{saved=JSON.parse(store('feis.login')||'null');}catch(e){}
+  await run(async function(){S.names=(await api('bootstrap')).dancers;});
+  if(saved&&saved.dancerId&&saved.code&&!S.error){
+    await run(async function(){S.data=await api('familyData',{dancerId:saved.dancerId,code:saved.code});
+      S.mode='family';S.auth={code:saved.code};S.dancerId=saved.dancerId;S.tab='mine';});
+    if(S.error){store('feis.login',null);S.error='';}
+  }
+  render();
+}
+async function familyLogin(dancerId,code){
+  var ok=await run(async function(){
+    S.data=await api('familyData',{dancerId:dancerId,code:code});
+    S.mode='family';S.auth={code:code};S.dancerId=dancerId;S.tab='mine';
+    store('feis.login',JSON.stringify({dancerId:dancerId,code:code}));return true;});
+  render();return ok;
+}
+async function adminLogin(password){
+  S.showStudio=true;
+  var ok=await run(async function(){
+    S.data=await api('adminData',{password:password});
+    S.mode='admin';S.auth={password:password};S.dancerId=null;S.tab='feis';return true;});
+  render();return ok;
+}
+function logout(){S.mode=null;S.auth=null;S.data=null;S.dancerId=null;S.error='';S.form={feisId:'',number:'',rows:{},loadedKey:'',status:'',ok:false};store('feis.login',null);render();}
+async function reload(){
+  await run(async function(){
+    if(isAdmin())S.data=await api('adminData',{password:S.auth.password});
+    else S.data=await api('familyData',{dancerId:S.dancerId,code:S.auth.code});});
+}
+async function mutate(action,payload){
+  var r=await run(function(){return api(action,Object.assign(authPayload(),payload));});
+  if(S.error){render();return null;}
+  await reload();render();return r||{};
+}
+
+/* ---------- shell ---------- */
+function render(){
+  var app=document.getElementById('app');
+  if(!S.mode){app.replaceChildren(shell(null,loginView()));return;}
+  var tabs=isAdmin()
+    ?[['feis','Feis results'],['adv','Advancement'],['year','Season summary'],['entry','Enter results'],['dancers','Dancers'],['feiseanna','Feiseanna']]
+    :[['mine','My dancer'],['entry','Enter results']];
+  var views={mine:viewMine,entry:viewEntry,feis:viewFeis,adv:viewAdvancement,year:viewYear,dancers:viewDancers,feiseanna:viewFeiseanna};
+  var main=h('main',null,S.error?h('div',{class:'msg err'},S.error):null,views[S.tab]());
+  app.replaceChildren(shell(tabs,main));
+}
+function shell(tabs,main){
+  return h('div',null,
+    h('header',null,h('div',{class:'wrap'},
+      h('div',{class:'bar'},h('h1',null,'Troupe Feis Results'),
+        S.mode?h('span',{class:'who'},isAdmin()?'Studio':'Family',h('button',{class:'link',onclick:logout},'Sign out')):null),
+      tabs?h('nav',null,tabs.map(function(t){return h('button',{class:'tab','aria-current':String(S.tab===t[0]),onclick:function(){S.tab=t[0];S.error='';render();}},t[1]);})):null)),
+    h('div',{class:'wrap'},tabs?main:h('main',null,main)));
+}
+function empty(t){return h('div',{class:'empty'},t);}
+
+/* ---------- login ---------- */
+function loginView(){
+  var sel=h('select',{id:'login-dancer',onchange:function(e){S.pickDancer=e.target.value;}},h('option',{value:''},'Choose your dancer'),
+    S.names.slice().sort(sortName).map(function(d){return h('option',{value:d.id,selected:d.id===S.pickDancer},d.name);}));
+  var code=h('input',{id:'login-code',type:'text',autocomplete:'off',autocapitalize:'off'});
+  var pw=h('input',{id:'studio-pw',type:'password',autocomplete:'current-password'});
+  var msg=h('div',{class:'err'},S.error);
+  var studio=h('div',{class:'card stack',hidden:!S.showStudio},h('h3',null,'Studio sign-in'),
+    h('label',null,'Studio password',pw),
+    h('div',{class:'row'},h('button',{class:'primary',onclick:function(){if(pw.value)adminLogin(pw.value);}},'Open studio view')));
+  return h('div',{class:'narrow stack'},
+    h('div',{class:'card stack'},h('h2',null,'Find your dancer'),
+      S.names.length?null:empty('No dancers have been added yet. Check back after the studio sets up the troupe.'),
+      S.names.length?[h('label',null,'Dancer',sel),h('label',null,'Family code',code),
+        h('div',{class:'row'},h('button',{class:'primary',disabled:S.busy,onclick:function(){
+          if(!sel.value){S.error='Choose a dancer.';render();return;}
+          if(!code.value.trim()){S.error='Enter your family code.';render();return;}
+          familyLogin(sel.value,code.value.trim());}},S.busy?'Opening…':'Open')),msg]:msg),
+    h('div',{class:'row'},h('button',{class:'link',onclick:function(){S.showStudio=!S.showStudio;studio.hidden=!S.showStudio;}},'Studio sign-in')),studio);
+}
+
+/* ---------- family ---------- */
+function currentDancer(){return S.data?byId(S.data.dancers,S.dancerId):null;}
+function info(l,v){return h('div',null,h('div',{class:'muted'},l),h('div',{style:'font-weight:500'},v));}
+
+function viewMine(){
+  var d=currentDancer();
+  if(!d)return empty('Dancer not found.');
+  var rs=S.data.results.filter(function(r){return r.dancerId===d.id;});
+  return h('div',{class:'stack'},
+    h('div',{class:'card stack'},h('h2',null,d.name),
+      h('div',{class:'grid'},info('Troupe class',d.troupe||'Not set'),info('Class times',d.classTimes||'Not set'))),
+    levelsCard(d),resultsByFeis(rs,'Past results'),videosCard(d));
+}
+
+function levelsCard(d){
+  var rows=DANCES.filter(function(dn){var v=levelOf(d,dn);return v&&v!=='x'&&v!=='No';});
+  var card=h('div',{class:'card stack'},h('h2',null,'Levels'));
+  if(!rows.length){card.append(empty('Levels haven’t been set yet.'));return card;}
+  card.append(h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,['Dance','Level'].map(function(x){return h('th',null,x);}))),
+    h('tbody',null,rows.map(function(dn){var v=levelOf(d,dn);return h('tr',null,h('td',null,dn),h('td',null,v==='Placed out'?'Placed out (max wins)':v));})))));
+  return card;
+}
+function resultsByFeis(rs,title){
+  var card=h('div',{class:'card stack'},h('h2',null,title));
+  if(!rs.length){card.append(empty('No results entered yet. Use “Enter results” after each feis.'));return card;}
+  var groups={};rs.forEach(function(r){(groups[r.feisId]=groups[r.feisId]||[]).push(r);});
+  Object.keys(groups).map(function(id){return byId(S.data.feis,id)||{id:id,name:'Unknown feis',date:''};})
+   .sort(function(a,b){return (b.date||'').localeCompare(a.date||'');})
+   .forEach(function(f){
+    var list=groups[f.id].slice().sort(function(a,b){return DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);});
+    card.append(h('div',null,
+      h('h3',null,f.name,' ',h('span',{class:'muted'},fmtDate(f.date))),
+      h('div',{class:'scroll'},h('table',null,
+        h('thead',null,h('tr',null,['Dance','Place','Competitors','Judge'].map(function(x){return h('th',null,x);}))),
+        h('tbody',null,list.map(function(r){return h('tr',null,
+          h('td',null,r.dance),
+          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
+          h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));}))))));
+  });
+  return card;
+}
+
+function videosCard(d){
+  var mine=S.data.videos.filter(function(v){return v.dancerId===d.id;});
+  var card=h('div',{class:'card stack'},h('h2',null,'Videos'));
+  if(!mine.length)card.append(h('p',{class:'muted',style:'margin:0'},'Add a link to a recording of a dance. Links must start with https://.'));
+  mine.forEach(function(v){var u=safeUrl(v.url);
+    card.append(h('div',{class:'row between'},
+      h('div',null,h('b',null,v.dance),' ',v.note?h('span',{class:'muted'},v.note):'',' ',
+        u?h('a',{href:u,target:'_blank',rel:'noopener noreferrer'},'Watch'):h('span',{class:'muted'},'(invalid link)')),
+      h('button',{class:'link danger',onclick:function(){mutate('removeVideo',{dancerId:d.id,id:v.id});}},'Remove')));});
+  var dsel=h('select',{id:'vid-dance'},DANCES.map(function(x){return h('option',{value:x},x);}));
+  var url=h('input',{id:'vid-url',type:'url',placeholder:'https://…'});
+  var note=h('input',{id:'vid-note',type:'text',placeholder:'Feis or note (optional)'});
+  card.append(h('div',{class:'row'},
+    h('label',{style:'flex:1 1 140px'},'Dance',dsel),
+    h('label',{style:'flex:2 1 200px'},'Video link',url),
+    h('label',{style:'flex:1 1 140px'},'Note',note),
+    h('button',{disabled:S.busy,onclick:function(){
+      mutate('addVideo',{dancerId:d.id,dance:dsel.value,url:url.value.trim(),note:note.value.trim()});}},'Add')));
+  return card;
+}
+
+/* ---------- enter results ---------- */
+function adminPicker(){
+  return h('select',{id:'admin-pick',onchange:function(e){S.dancerId=e.target.value||null;S.form.loadedKey='';render();}},
+    h('option',{value:''},'Choose a dancer'),
+    S.data.dancers.slice().sort(sortName).map(function(x){return h('option',{value:x.id,selected:x.id===S.dancerId},x.name);}));
+}
+function viewEntry(){
+  var wrap=h('div',{class:'stack'});
+  if(isAdmin()){wrap.append(h('div',{class:'card stack'},h('label',null,'Dancer',adminPicker())));}
+  var d=currentDancer();
+  if(!d){return wrap;}
+  if(!S.data.feis.length){wrap.append(h('div',{class:'card'},empty('No feiseanna have been added yet. The studio adds each feis before results can be entered.')));return wrap;}
+  var F=S.form;
+  var feis=byId(S.data.feis,F.feisId);
+  var key=F.feisId+'|'+d.id;
+  if(F.loadedKey!==key){
+    F.loadedKey=key;F.rows={};F.status='';F.ok=false;F.number='';
+    var ex=S.data.results.filter(function(r){return r.feisId===F.feisId&&r.dancerId===d.id;});
+    ex.forEach(function(r){F.rows[r.dance]={competitors:r.competitors,place:r.place,judge:r.judge||'',status:r.status||'placed'};});
+    if(ex.length)F.number=ex[0].number;
+  }
+  var fsel=h('select',{id:'entry-feis',onchange:function(e){F.feisId=e.target.value;F.loadedKey='';render();}},
+    h('option',{value:''},'Choose the feis'),
+    S.data.feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(f){
+      return h('option',{value:f.id,selected:f.id===F.feisId},f.name+' · '+fmtDate(f.date));}));
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Results for '+d.name),
+    h('div',{class:'row'},h('label',{style:'flex:2 1 220px'},'Feis',fsel),
+      h('label',{style:'flex:1 1 120px'},'Dancer number',
+        h('input',{id:'entry-number',type:'text',inputmode:'numeric',maxlength:'12',value:F.number,oninput:function(e){F.number=e.target.value;}})))));
+  if(!feis)return wrap;
+  var list=dancesFor(feis);
+  wrap.append(h('div',{class:'card'},
+    h('p',{class:'muted',style:'margin:0 0 4px'},(FEIS_TYPES[feis.type]||'Feis')+'. Fill in only the dances this dancer entered. Competitors means the number in the dancer’s age group for that dance. Choose “Did not place”, “Registered – did not dance” or “Missed the dance” when there is no place. Clearing a dance and saving removes it.'),
+    list.map(function(dn){
+      var r=F.rows[dn]||{};var id=slug(dn);var st=r.status||'placed';
+      function set(f){return function(e){var o=Object.assign({},F.rows[dn]||{});o[f]=e.target.value;F.rows[dn]=o;};}
+      var lv=levelOf(d,dn);
+      var tag=lv&&lv!=='x'?h('div',{class:'muted'},lv==='No'||lv==='Placed out'?(lv==='No'?'Not eligible':'Placed out'):lv):null;
+      var stSel=h('select',{id:'s-'+id,onchange:function(e){set('status')(e);render();}},
+        [['placed','Placed'],['dnp','Did not place'],['sick','Registered – did not dance'],['missed','Missed the dance']].map(function(o){return h('option',{value:o[0],selected:o[0]===st},o[1]);}));
+      var placed=st==='placed';
+      return h('div',{class:'dance-row'},h('div',null,h('b',null,dn),tag),
+        h('label',null,'Result',stSel),
+        h('label',null,'Place',h('input',{id:'p-'+id,type:'number',min:'1',inputmode:'numeric',value:placed?r.place:'',disabled:!placed,oninput:set('place')})),
+        h('label',null,'Competitors',h('input',{id:'c-'+id,type:'number',min:'1',inputmode:'numeric',value:r.competitors,oninput:set('competitors')})),
+        h('label',null,'Judge',h('input',{id:'j-'+id,type:'text',maxlength:'80',value:r.judge,oninput:set('judge')})));})));
+  var status=h('span',{class:F.ok?'ok':'err'},F.status);
+  wrap.append(h('div',{class:'row',style:'align-items:center'},
+    h('button',{class:'primary',disabled:S.busy,onclick:function(){saveEntry(d,list,status);}},S.busy?'Saving…':'Save results'),status));
+  return wrap;
+}
+async function saveEntry(d,list,statusEl){
+  var F=S.form;
+  var rows=list.map(function(dn){var r=F.rows[dn]||{};return {dance:dn,competitors:r.competitors,place:r.status&&r.status!=='placed'?'':r.place,judge:r.judge,status:r.status||'placed'};});
+  F.status='Saving…';F.ok=false;statusEl.className='muted';statusEl.textContent='Saving…';
+  var r=await run(function(){return api('saveResults',Object.assign(authPayload(),{dancerId:d.id,feisId:F.feisId,number:F.number,rows:rows}));});
+  if(S.error){F.status=S.error;S.error='';F.ok=false;statusEl.className='err';statusEl.textContent=F.status;return;}
+  F.status='Saved '+r.saved+' result(s)'+(r.removed?' and removed '+r.removed:'')+'.';F.ok=true;
+  var keep=F.loadedKey;
+  await reload();
+  F.loadedKey=keep;render();
+}
+
+/* ---------- studio: per feis ---------- */
+function viewFeis(){
+  var wrap=h('div',{class:'stack'});
+  var feis=S.data.feis;
+  if(!feis.length){wrap.append(h('div',{class:'card'},empty('Add your first feis under Feiseanna.')));return wrap;}
+  var sorted=feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
+  if(!byId(feis,S.adminFeisId))S.adminFeisId=sorted[0].id;
+  var f=byId(feis,S.adminFeisId);
+  wrap.append(h('div',{class:'card'},h('label',null,'Feis',
+    h('select',{id:'admin-feis',onchange:function(e){S.adminFeisId=e.target.value;render();}},
+      sorted.map(function(x){return h('option',{value:x.id,selected:x.id===S.adminFeisId},x.name+' · '+fmtDate(x.date));})))));
+  var rs=S.data.results.filter(function(r){return r.feisId===f.id;});
+  var card=h('div',{class:'card stack'},h('h2',null,f.name),
+    h('div',{class:'muted'},fmtDate(f.date)+' · '+(FEIS_TYPES[f.type]||'')+' · '+new Set(rs.map(function(r){return r.dancerId;})).size+' dancer(s) reported'));
+  if(!rs.length)card.append(empty('No results entered for this feis yet.'));
+  else{
+    var by={};rs.forEach(function(r){(by[r.dancerId]=by[r.dancerId]||[]).push(r);});
+    var body=[];
+    Object.keys(by).map(function(id){return byId(S.data.dancers,id)||{id:id,name:'Unknown dancer'};}).sort(sortName).forEach(function(d){
+      by[d.id].sort(function(a,b){return DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).forEach(function(r,i){
+        body.push(h('tr',null,h('td',null,i===0?d.name:''),h('td',null,i===0&&r.number?'#'+r.number:''),h('td',null,r.dance),
+          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r))),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||'')));});});
+    card.append(h('div',{class:'scroll'},h('table',null,
+      h('thead',null,h('tr',null,['Dancer','No.','Dance','Place','In group','Judge'].map(function(x){return h('th',null,x);}))),h('tbody',null,body))));
+  }
+  wrap.append(card);return wrap;
+}
+
+/* ---------- studio: advancement ---------- */
+function viewAdvancement(){
+  var wrap=h('div',{class:'stack'});
+  var card=h('div',{class:'card stack'},h('h2',null,'Advancement'),
+    h('p',{class:'muted',style:'margin:0'},'A win is 1st place in a group of at least '+minComp()+' dancers; a 1st with no group size entered counts too. Each dance has its own level. Beginner A needs 1 win in a dance, Beginner B and Intermediate need 2. A Premiere Prize win advances Slip Jig and Traditional Set Dance. Preliminary Champion allows '+RULES.prelimLimit+' wins. Wins count at the level they were danced, so moving a dancer up starts that dance fresh.'));
+  if(!S.data.dancers.length){card.append(empty('Add dancers first.'));wrap.append(card);return wrap;}
+  var rowsEls=S.data.dancers.slice().sort(sortName).map(function(d){
+    var s=advStatus(d);
+    var prelimCell=s.prelimStatus==='Placed out'||s.prelim>=RULES.prelimLimit?h('span',{class:'pill win'},'Placed out'):(s.prelim?h('span',{class:'pill'},s.prelim+' of '+RULES.prelimLimit):'—');
+    return h('tr',null,
+      h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),
+      h('td',null,s.ready.length?s.ready.map(function(x){
+        return h('div',null,h('span',{class:'pill win'},x.dance),' ',h('span',{class:'muted'},x.level+(x.viaPremier?' · via Premiere Prize':'')));}):'—'),
+      h('td',null,s.progress.join(', ')||'—'),
+      h('td',null,s.premier?String(s.premier):'—'),
+      h('td',null,prelimCell));});
+  card.append(h('div',{class:'scroll'},h('table',null,
+    h('thead',null,h('tr',null,['Dancer','Ready to advance in','Working toward','Premiere wins','Prelim champion'].map(function(x){return h('th',null,x);}))),
+    h('tbody',null,rowsEls))));
+  wrap.append(card);return wrap;
+}
+
+/* ---------- studio: year ---------- */
+function viewYear(){
+  var years=Array.from(new Set(S.data.feis.map(function(f){return f.date?String(seasonOf(f.date)):'';}).filter(Boolean))).sort().reverse();
+  var now=new Date(),thisYear=String(now.getMonth()>=7?now.getFullYear():now.getFullYear()-1);
+  if(years.indexOf(thisYear)<0)years.unshift(thisYear);
+  if(!S.year||years.indexOf(S.year)<0)S.year=years[0];
+  var wrap=h('div',{class:'stack'});
+  var min=h('input',{id:'min-comp',type:'number',min:'2',max:'50',value:minComp(),style:'width:100px',
+    onchange:function(e){mutate('saveSettings',{minCompetitors:e.target.value});}});
+  wrap.append(h('div',{class:'card row'},
+    h('label',{style:'flex:1 1 120px'},'Season',h('select',{id:'year-pick',onchange:function(e){S.year=e.target.value;render();}},years.map(function(y){return h('option',{value:y,selected:y===S.year},seasonLabel(+y)+' season');}))),
+    h('label',{style:'flex:1 1 240px'},'A win counts with at least this many competitors',min)));
+  var feisIds={};S.data.feis.forEach(function(f){if(f.date&&String(seasonOf(f.date))===S.year)feisIds[f.id]=f;});
+  var rs=S.data.results.filter(function(r){return feisIds[r.feisId];});
+  var card=h('div',{class:'card stack'},h('h2',null,'Summary for the '+seasonLabel(+S.year)+' season'),
+    h('p',{class:'muted',style:'margin:0'},'Everything entered for feiseanna from August '+S.year+' to July '+(+S.year+1)+'. Qualifying wins are 1st places in groups of at least '+minComp()+' (or with no group size entered). The Advancement tab applies the level rules.'));
+  if(!rs.length){card.append(empty('No results entered for this season yet.'));wrap.append(card);return wrap;}
+  var by={};rs.forEach(function(r){(by[r.dancerId]=by[r.dancerId]||[]).push(r);});
+  var rowsEls=Object.keys(by).map(function(id){return byId(S.data.dancers,id)||{id:id,name:'Unknown dancer'};}).sort(sortName).map(function(d){
+    var list=by[d.id],wins=list.filter(isWin);
+    var firsts=list.filter(function(r){return (!r.status||r.status==='placed')&&+r.place===1;}).length;
+    var per={};wins.forEach(function(r){per[r.dance]=(per[r.dance]||0)+1;});
+    return h('tr',null,h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),
+      h('td',null,new Set(list.map(function(r){return r.feisId;})).size),h('td',null,list.length),h('td',null,firsts),
+      h('td',null,wins.length?h('span',{class:'pill win'},wins.length):'0'),
+      h('td',null,Object.keys(per).map(function(k){return k+' ×'+per[k];}).join(', ')||'—'));});
+  card.append(h('div',{class:'scroll'},h('table',null,
+    h('thead',null,h('tr',null,['Dancer','Feiseanna','Dances','1st places','Qualifying wins','Wins by dance'].map(function(x){return h('th',null,x);}))),h('tbody',null,rowsEls))));
+  wrap.append(card);
+  var flags=rs.filter(isWin).sort(function(a,b){return (feisIds[b.feisId].date||'').localeCompare(feisIds[a.feisId].date||'');});
+  var fc=h('div',{class:'card stack'},h('h2',null,'Qualifying wins'));
+  if(!flags.length)fc.append(empty('No qualifying wins yet this season.'));
+  else fc.append(h('div',{class:'scroll'},h('table',null,
+    h('thead',null,h('tr',null,['Dancer','Dance','Feis','Competitors','Judge'].map(function(x){return h('th',null,x);}))),
+    h('tbody',null,flags.map(function(r){var d=byId(S.data.dancers,r.dancerId)||{name:'Unknown dancer'};
+      return h('tr',null,h('td',null,d.name),h('td',null,r.dance),h('td',null,feisIds[r.feisId].name),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));})))));
+  wrap.append(fc);return wrap;
+}
+
+/* ---------- studio: dancers ---------- */
+function randomCode(){var c='abcdefghjkmnpqrstuvwxyz23456789',s='';for(var i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
+function dancerFields(d,pre){
+  var f={
+    name:h('input',{id:pre+'name',type:'text',value:d.name}),
+    troupe:h('input',{id:pre+'troupe',type:'text',value:d.troupe,placeholder:'e.g. Beginner A Group 1'}),
+    classTimes:h('input',{id:pre+'times',type:'text',value:d.classTimes,placeholder:'e.g. Tue 5:30–6:30, Sat 10:00'}),
+    code:h('input',{id:pre+'code',type:'text',value:d.code}),
+    wins:h('input',{id:pre+'wins',type:'number',min:'0',max:'20',value:d.priorPrelimWins||0})};
+  var lv={};
+  var lvGrid=h('div',{class:'grid'},DANCES.map(function(dn){
+    var cur=(d.levels&&d.levels[dn])||'';
+    var opts=ELIG_DANCES.indexOf(dn)>=0?['']. concat(ELIG_VALUES):['','x'].concat(LEVELS);
+    lv[dn]=h('select',{id:pre+'lv-'+slug(dn)},opts.map(function(o){return h('option',{value:o,selected:o===cur},o===''?'Not set':(o==='x'?'Doesn’t dance':o));}));
+    return h('label',null,dn,lv[dn]);}));
+  return {f:f,grid:h('div',{class:'stack'},
+      h('div',{class:'grid'},h('label',null,'Name',f.name),h('label',null,'Troupe class',f.troupe),
+        h('label',null,'Class times',f.classTimes),h('label',null,'Family code',f.code),h('label',null,'Prelim wins before this year',f.wins)),
+      h('h3',null,'Level in each dance'),lvGrid),
+    read:function(id){var levels={};DANCES.forEach(function(dn){levels[dn]=lv[dn].value;});
+      return {id:id,name:f.name.value,troupe:f.troupe.value,classTimes:f.classTimes.value,code:f.code.value,priorPrelimWins:f.wins.value,levels:levels};}};
+}
+function viewDancers(){
+  var wrap=h('div',{class:'stack'});
+  var nf=dancerFields({name:'',troupe:'',classTimes:'',code:randomCode(),levels:{},priorPrelimWins:0},'new-');
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Add a dancer'),nf.grid,
+    h('div',null,h('button',{class:'primary',disabled:S.busy,onclick:async function(){
+      var r=await mutate('saveDancer',{dancer:nf.read()});if(r){S.names=S.data.dancers;render();}}},'Add dancer'))));
+  var list=h('div',{class:'card stack'},h('h2',null,'Dancers ('+S.data.dancers.length+')'),
+    h('p',{class:'muted',style:'margin:0'},'Give each family their code privately. Codes aren’t case-sensitive.'));
+  if(!S.data.dancers.length)list.append(empty('No dancers yet.'));
+  S.data.dancers.slice().sort(sortName).forEach(function(d){
+    var ef=dancerFields(d,'d'+d.id+'-');
+    var det=h('details',{style:'padding-top:12px;border-top:1px solid var(--line)'},
+      h('summary',{style:'cursor:pointer'},h('b',null,d.name),' ',h('span',{class:'muted'},(d.troupe||'No troupe class')+' · code '+d.code)),
+      h('div',{class:'stack',style:'padding-top:12px'},ef.grid,
+        h('div',{class:'row between'},h('button',{disabled:S.busy,onclick:function(){mutate('saveDancer',{dancer:ef.read(d.id)});}},'Save changes'),
+          delButton('Remove dancer',function(){return mutate('deleteDancer',{id:d.id});}))));
+    list.append(det);});
+  wrap.append(list);return wrap;
+}
+function delButton(label,fn){
+  var armed=false;
+  var b=h('button',{class:'link danger',onclick:function(){
+    if(!armed){armed=true;b.textContent='Tap again to confirm';setTimeout(function(){armed=false;b.textContent=label;},4000);return;}
+    fn();}},label);
+  return b;
+}
+
+/* ---------- studio: feiseanna ---------- */
+function viewFeiseanna(){
+  var wrap=h('div',{class:'stack'});
+  var name=h('input',{id:'new-feis-name',type:'text',placeholder:'Feis name'});
+  var date=h('input',{id:'new-feis-date',type:'date'});
+  var type=h('select',{id:'new-feis-type'},Object.keys(FEIS_TYPES).map(function(k){return h('option',{value:k},FEIS_TYPES[k]);}));
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Add a feis'),
+    h('p',{class:'muted',style:'margin:0'},'A grade feis hides Award Reel, Open Event and Preliminary Champion on the entry form. A major championship shows every dance.'),
+    h('div',{class:'grid'},h('label',null,'Name',name),h('label',null,'Date',date),h('label',null,'Type',type)),
+    h('div',null,h('button',{class:'primary',disabled:S.busy,onclick:function(){
+      mutate('saveFeis',{feis:{name:name.value,date:date.value,type:type.value}});}},'Add feis'))));
+  var list=h('div',{class:'card stack'},h('h2',null,'Feiseanna ('+S.data.feis.length+')'));
+  if(!S.data.feis.length)list.append(empty('No feiseanna yet.'));
+  S.data.feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).forEach(function(f){
+    var count=S.data.results.filter(function(r){return r.feisId===f.id;}).length;
+    list.append(h('div',{class:'row between',style:'padding-top:10px;border-top:1px solid var(--line)'},
+      h('div',null,h('b',null,f.name),h('div',{class:'muted'},fmtDate(f.date)+' · '+(FEIS_TYPES[f.type]||'')+' · '+count+' result(s)')),
+      delButton('Remove',function(){return mutate('deleteFeis',{id:f.id});})));});
+  wrap.append(list);return wrap;
+}
+
+boot();
+})();
+</script>
+</body>
+</html>

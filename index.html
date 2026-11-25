@@ -36,6 +36,7 @@ button.link{border:0;background:none;padding:2px 0;min-height:0;color:var(--acce
 button.danger{color:var(--bad)}
 button:disabled{opacity:.5;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0;resize:vertical}
 input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px;width:100%;min-width:0}
 label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted);font-weight:500;letter-spacing:.02em}
 main{padding-block:20px;display:flex;flex-direction:column;gap:20px}
@@ -59,6 +60,15 @@ th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 .ok{color:var(--accent);font-weight:600}
 .err{color:var(--bad)}
 .empty{text-align:center;padding:28px 12px;color:var(--muted)}
+.meter{height:6px;background:var(--line);border-radius:3px;margin-top:3px;min-width:70px}
+.meter span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.tile b{display:block;font:700 1.4rem var(--head)}
+th.sort{cursor:pointer;text-decoration:underline}
+.chk{flex-direction:row;align-items:center;gap:8px;font-size:.9rem;color:var(--ink);font-weight:400;letter-spacing:0}
+.chk input{width:auto;min-height:0}
+.note{padding-top:10px;border-top:1px solid var(--line)}
 .narrow{max-width:520px;margin:0 auto;width:100%}
 </style>
 </head>
@@ -76,6 +86,7 @@ var ELIG_DANCES=['Open Event','Preliminary Champion'];
 var ELIG_VALUES=['Yes','No','Placed out'];
 var GRADE_EXCLUDED=['Award Reel','Open Event','Preliminary Champion'];
 var LEVELS=['Beginner A','Beginner B','Intermediate','Open Champion'];
+var VIDEO_LEVELS=LEVELS.concat(['All levels']);
 var FEIS_TYPES={grade:'Grade feis',championship:'Major championship'};
 
 var S={names:[],mode:null,auth:null,data:null,tab:null,dancerId:null,year:null,adminFeisId:null,
@@ -115,6 +126,7 @@ var RULES={
 };
 function levelOf(d,dn){return (d.levels&&d.levels[dn])||'';}
 function isStep(l){return !!RULES.winsNeeded[l];}
+function lastWinDate(rows){var best='';rows.forEach(function(r){var f=byId(S.data.feis,r.feisId);if(f&&f.date&&f.date>best)best=f.date;});return best;}
 function advStatus(d){
   var mine=S.data.results.filter(function(r){return r.dancerId===d.id;});
   var ready=[],progress=[],viaPremier=[],placedOut=[];
@@ -123,8 +135,8 @@ function advStatus(d){
     var lv=levelOf(d,dn);if(!isStep(lv))return;
     var need=RULES.winsNeeded[lv];
     var c=mine.filter(function(r){return r.dance===dn&&isWin(r)&&(r.level||lv)===lv;}).length;
-    if(c>=need)ready.push({dance:dn,level:lv});
-    else if(premierWins&&RULES.premierAdvances.indexOf(dn)>=0){ready.push({dance:dn,level:lv,viaPremier:true});}
+    if(c>=need)ready.push({dance:dn,level:lv,date:lastWinDate(mine.filter(function(r){return r.dance===dn&&isWin(r)&&(r.level||lv)===lv;}))});
+    else if(premierWins&&RULES.premierAdvances.indexOf(dn)>=0){ready.push({dance:dn,level:lv,viaPremier:true,date:lastWinDate(mine.filter(function(r){return r.dance==='Premiere Prize'&&isWin(r);}))});}
     else if(c>0)progress.push(dn+' '+c+' of '+need);
   });
   var pe=levelOf(d,'Preliminary Champion');
@@ -146,7 +158,9 @@ function placeText(r){
   return ordinal(r.place)||'—';
 }
 function isAdmin(){return S.mode==='admin';}
-function authPayload(){return isAdmin()?{password:S.auth.password}:{code:S.auth.code};}
+function isOwner(){return isAdmin()&&!(S.data&&S.data.role==='staff');}
+function canSee(p){return isOwner()||!!(S.data&&S.data.me&&S.data.me.perms.indexOf(p)>=0);}
+function authPayload(){return isAdmin()?(S.auth.staffUser?{staffUser:S.auth.staffUser,password:S.auth.password}:{password:S.auth.password}):{code:S.auth.code};}
 function sortName(a,b){return (a.name||'').localeCompare(b.name||'');}
 
 async function api(action,payload){
@@ -180,17 +194,18 @@ async function familyLogin(dancerId,code){
     store('feis.login',JSON.stringify({dancerId:dancerId,code:code}));return true;});
   render();return ok;
 }
-async function adminLogin(password){
-  S.showStudio=true;
+async function adminLogin(password,staffUser){
+  S.showStudio=true;S.lastUser=staffUser||'';
   var ok=await run(async function(){
-    S.data=await api('adminData',{password:password});
-    S.mode='admin';S.auth={password:password};S.dancerId=null;S.tab='feis';return true;});
+    var auth=staffUser?{staffUser:staffUser,password:password}:{password:password};
+    S.data=await api('adminData',auth);
+    S.mode='admin';S.auth=auth;S.dancerId=null;S.tab='feis';return true;});
   render();return ok;
 }
-function logout(){S.mode=null;S.auth=null;S.data=null;S.dancerId=null;S.error='';S.form={feisId:'',number:'',rows:{},loadedKey:'',status:'',ok:false};store('feis.login',null);render();}
+function logout(){S.mode=null;S.showStudio=false;S.auth=null;S.data=null;S.dancerId=null;S.error='';S.form={feisId:'',number:'',rows:{},loadedKey:'',status:'',ok:false};store('feis.login',null);render();}
 async function reload(){
   await run(async function(){
-    if(isAdmin())S.data=await api('adminData',{password:S.auth.password});
+    if(isAdmin())S.data=await api('adminData',authPayload());
     else S.data=await api('familyData',{dancerId:S.dancerId,code:S.auth.code});});
 }
 async function mutate(action,payload){
@@ -203,18 +218,21 @@ async function mutate(action,payload){
 function render(){
   var app=document.getElementById('app');
   if(!S.mode){app.replaceChildren(shell(null,loginView()));return;}
+  var OWN='owner';
   var tabs=isAdmin()
-    ?[['feis','Feis results'],['adv','Advancement'],['year','Season summary'],['entry','Enter results'],['dancers','Dancers'],['feiseanna','Feiseanna']]
+    ?[['feis','Feis results','results'],['adv','Advancement','advancement'],['analytics','Analytics','analytics'],['year','Season summary','results'],['attend','Attendance','attendance'],['entry','Enter results',OWN],['notes','Notes','notes'],['dancers','Dancers',OWN],['videos','Videos','videos'],['feiseanna','Feiseanna',OWN],['staff','Staff',OWN]]
+      .filter(function(t){return t[2]===OWN?isOwner():canSee(t[2]);})
     :[['mine','My dancer'],['entry','Enter results']];
-  var views={mine:viewMine,entry:viewEntry,feis:viewFeis,adv:viewAdvancement,year:viewYear,dancers:viewDancers,feiseanna:viewFeiseanna};
-  var main=h('main',null,S.error?h('div',{class:'msg err'},S.error):null,views[S.tab]());
+  if(tabs.length&&!tabs.some(function(t){return t[0]===S.tab;}))S.tab=tabs[0][0];
+  var views={mine:viewMine,entry:viewEntry,feis:viewFeis,adv:viewAdvancement,year:viewYear,dancers:viewDancers,videos:viewVideos,feiseanna:viewFeiseanna,analytics:viewAnalytics,attend:viewAttendance,notes:viewNotes,staff:viewStaff};
+  var main=h('main',null,S.error?h('div',{class:'msg err'},S.error):null,tabs.length?views[S.tab]():h('div',{class:'card'},empty('No reports have been shared with you yet. Ask the studio owner.')));
   app.replaceChildren(shell(tabs,main));
 }
 function shell(tabs,main){
   return h('div',null,
     h('header',null,h('div',{class:'wrap'},
       h('div',{class:'bar'},h('h1',null,'Troupe Feis Results'),
-        S.mode?h('span',{class:'who'},isAdmin()?'Studio':'Family',h('button',{class:'link',onclick:logout},'Sign out')):null),
+        S.mode?h('span',{class:'who'},isAdmin()?(isOwner()?'Studio':'Staff · '+((S.data.me&&S.data.me.name)||'')):'Family',h('button',{class:'link',onclick:logout},'Sign out')):null),
       tabs?h('nav',null,tabs.map(function(t){return h('button',{class:'tab','aria-current':String(S.tab===t[0]),onclick:function(){S.tab=t[0];S.error='';render();}},t[1]);})):null)),
     h('div',{class:'wrap'},tabs?main:h('main',null,main)));
 }
@@ -226,10 +244,12 @@ function loginView(){
     S.names.slice().sort(sortName).map(function(d){return h('option',{value:d.id,selected:d.id===S.pickDancer},d.name);}));
   var code=h('input',{id:'login-code',type:'text',autocomplete:'off',autocapitalize:'off'});
   var pw=h('input',{id:'studio-pw',type:'password',autocomplete:'current-password'});
+  var user=h('input',{id:'studio-user',type:'text',autocomplete:'username',autocapitalize:'off',value:S.lastUser||''});
   var msg=h('div',{class:'err'},S.error);
   var studio=h('div',{class:'card stack',hidden:!S.showStudio},h('h3',null,'Studio sign-in'),
-    h('label',null,'Studio password',pw),
-    h('div',{class:'row'},h('button',{class:'primary',onclick:function(){if(pw.value)adminLogin(pw.value);}},'Open studio view')));
+    h('label',null,'Staff username (leave blank if you’re the studio owner)',user),
+    h('label',null,'Password',pw),
+    h('div',{class:'row'},h('button',{class:'primary',onclick:function(){if(pw.value)adminLogin(pw.value,user.value.trim());}},'Open studio view')));
   return h('div',{class:'narrow stack'},
     h('div',{class:'card stack'},h('h2',null,'Find your dancer'),
       S.names.length?null:empty('No dancers have been added yet. Check back after the studio sets up the troupe.'),
@@ -284,24 +304,41 @@ function resultsByFeis(rs,title){
 }
 
 function videosCard(d){
-  var mine=S.data.videos.filter(function(v){return v.dancerId===d.id;});
+  var mine=S.data.videos||[];
   var card=h('div',{class:'card stack'},h('h2',null,'Videos'));
-  if(!mine.length)card.append(h('p',{class:'muted',style:'margin:0'},'Add a link to a recording of a dance. Links must start with https://.'));
+  if(!mine.length){card.append(h('p',{class:'muted',style:'margin:0'},'No videos yet. Class videos for your dancer’s level will show up here.'));return card;}
   mine.forEach(function(v){var u=safeUrl(v.url);
     card.append(h('div',{class:'row between'},
-      h('div',null,h('b',null,v.dance),' ',v.note?h('span',{class:'muted'},v.note):'',' ',
-        u?h('a',{href:u,target:'_blank',rel:'noopener noreferrer'},'Watch'):h('span',{class:'muted'},'(invalid link)')),
-      h('button',{class:'link danger',onclick:function(){mutate('removeVideo',{dancerId:d.id,id:v.id});}},'Remove')));});
-  var dsel=h('select',{id:'vid-dance'},DANCES.map(function(x){return h('option',{value:x},x);}));
-  var url=h('input',{id:'vid-url',type:'url',placeholder:'https://…'});
-  var note=h('input',{id:'vid-note',type:'text',placeholder:'Feis or note (optional)'});
-  card.append(h('div',{class:'row'},
-    h('label',{style:'flex:1 1 140px'},'Dance',dsel),
-    h('label',{style:'flex:2 1 200px'},'Video link',url),
-    h('label',{style:'flex:1 1 140px'},'Note',note),
-    h('button',{disabled:S.busy,onclick:function(){
-      mutate('addVideo',{dancerId:d.id,dance:dsel.value,url:url.value.trim(),note:note.value.trim()});}},'Add')));
+      h('div',null,h('b',null,v.dance&&v.dance!=='All dances'?v.dance:'All dances'),' ',h('span',{class:'muted'},v.level+(v.note?' · '+v.note:'')),' ',
+        u?h('a',{href:u,target:'_blank',rel:'noopener noreferrer'},'Watch'):h('span',{class:'muted'},'(invalid link)'))));});
   return card;
+}
+
+/* ---------- studio: videos ---------- */
+function viewVideos(){
+  var wrap=h('div',{class:'stack'});
+  var lsel=h('select',{id:'vid-level'},VIDEO_LEVELS.map(function(x){return h('option',{value:x},x);}));
+  var dsel=h('select',{id:'vid-dance'},[h('option',{value:'All dances'},'All dances')].concat(DANCES.map(function(x){return h('option',{value:x},x);})));
+  var url=h('input',{id:'vid-url',type:'url',placeholder:'https://…'});
+  var note=h('input',{id:'vid-note',type:'text',placeholder:'Title or note (optional)'});
+  if(isOwner())wrap.append(h('div',{class:'card stack'},h('h2',null,'Add a video'),
+    h('p',{class:'muted',style:'margin:0'},'Families see a video when their dancer is at that level. Pick a dance to limit it to dancers at that level in that dance; “All levels” shows it to every dancer who does that dance.'),
+    h('div',{class:'grid'},h('label',null,'Level',lsel),h('label',null,'Dance',dsel),h('label',null,'Video link',url),h('label',null,'Title or note',note)),
+    h('div',null,h('button',{class:'primary',disabled:S.busy,onclick:function(){
+      mutate('addVideo',{level:lsel.value,dance:dsel.value,url:url.value.trim(),note:note.value.trim()});}},'Add video'))));
+  var vids=S.data.videos||[];
+  var list=h('div',{class:'card stack'},h('h2',null,'Videos ('+vids.length+')'));
+  if(!vids.length)list.append(empty('No videos yet.'));
+  VIDEO_LEVELS.forEach(function(lv){
+    var g=vids.filter(function(v){return v.level===lv;});if(!g.length)return;
+    list.append(h('h3',null,lv));
+    g.forEach(function(v){var u=safeUrl(v.url);
+      list.append(h('div',{class:'row between'},
+        h('div',null,h('b',null,v.dance||'All dances'),' ',v.note?h('span',{class:'muted'},v.note):'',' ',
+          u?h('a',{href:u,target:'_blank',rel:'noopener noreferrer'},'Watch'):h('span',{class:'muted'},'(invalid link)')),
+        isOwner()?delButton('Remove',function(){return mutate('removeVideo',{id:v.id});}):null));});
+  });
+  wrap.append(list);return wrap;
 }
 
 /* ---------- enter results ---------- */
@@ -368,7 +405,7 @@ async function saveEntry(d,list,statusEl){
 }
 
 /* ---------- studio: per feis ---------- */
-function viewFeis(){
+function viewFeisOne(){
   var wrap=h('div',{class:'stack'});
   var feis=S.data.feis;
   if(!feis.length){wrap.append(h('div',{class:'card'},empty('Add your first feis under Feiseanna.')));return wrap;}
@@ -395,6 +432,82 @@ function viewFeis(){
   wrap.append(card);return wrap;
 }
 
+
+/* ---------- studio: results views (by feis / dancer / level / advancement) ---------- */
+var FV={mode:'feis',season:'all',feis:'all',level:'all',dancer:'all'};
+var ADV_LEVELS=['Beginner A','Beginner B','Intermediate'];
+function resLevel(r,d){
+  var l=r.level||(d?levelOf(d,r.dance):'');
+  if(LEVELS.indexOf(l)>=0)return l;
+  if(l==='Yes'||l==='Placed out'||r.dance==='Preliminary Champion'||r.dance==='Open Event'||r.dance==='Premiere Prize')return 'Open Champion';
+  return 'Not recorded';
+}
+function viewFeis(){
+  var wrap=h('div',{class:'stack'});
+  var modes=[['feis','By feis'],['dancer','By dancer'],['level','By level'],['adv','Advancements']];
+  wrap.append(h('div',{class:'card'},h('label',null,'View results',
+    h('select',{id:'fv-mode',onchange:function(e){FV.mode=e.target.value;render();}},
+      modes.map(function(m){return h('option',{value:m[0],selected:m[0]===FV.mode},m[1]);})))));
+  if(FV.mode==='feis'){wrap.append(viewFeisOne());return wrap;}
+  var feisBy={},dBy={};S.data.feis.forEach(function(f){feisBy[f.id]=f;});S.data.dancers.forEach(function(d){dBy[d.id]=d;});
+  var seasons=Array.from(new Set(S.data.feis.map(function(f){return f.date?String(seasonOf(f.date)):'';}).filter(Boolean))).sort().reverse();
+  function sel(id,label,val,opts,key){
+    return h('label',{style:'flex:1 1 170px'},label,h('select',{id:id,onchange:function(e){FV[key]=e.target.value;render();}},
+      opts.map(function(o){return h('option',{value:o[0],selected:o[0]===val},o[1]);})));}
+  var all=[['all','All']];
+  var fs=[sel('fv-season','Season',FV.season,all.concat(seasons.map(function(y){return [y,seasonLabel(+y)];})),'season'),
+    sel('fv-feis','Feis',FV.feis,all.concat(S.data.feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(f){return [f.id,f.name];})),'feis')];
+  if(FV.mode==='dancer')fs.push(sel('fv-dancer','Dancer',FV.dancer,all.concat(S.data.dancers.slice().sort(sortName).map(function(d){return [d.id,d.name];})),'dancer'));
+  if(FV.mode==='level')fs.push(sel('fv-level','Level',FV.level==='all'?'Beginner A':FV.level,LEVELS.map(function(x){return [x,x==='Open Champion'?'Champion (Open / Prelim)':x];}),'level'));
+  if(FV.mode==='adv')fs.push(sel('fv-level','Level',FV.level,all.concat(ADV_LEVELS.map(function(x){return [x,x];})),'level'));
+  var info={dancer:'Every dancer and every placement. Pick one dancer to see just her results.',
+    level:'Everyone who danced at this level, grouped by dance, with how they placed.',
+    adv:'Every 1st place at Beginner A, Beginner B or Intermediate in a group of at least '+minComp()+' dancers. A 1st with no group size entered is included and marked.'}[FV.mode];
+  wrap.append(h('div',{class:'card stack'},h('div',{class:'row'},fs),h('p',{class:'muted',style:'margin:0'},info)));
+  var lvSel=FV.level==='all'&&FV.mode==='level'?'Beginner A':FV.level;
+  var rs=S.data.results.filter(function(r){
+    var f=feisBy[r.feisId],d=dBy[r.dancerId];if(!f||!d)return false;
+    if(FV.season!=='all'&&String(seasonOf(f.date))!==FV.season)return false;
+    if(FV.feis!=='all'&&r.feisId!==FV.feis)return false;
+    if(FV.mode==='dancer'&&FV.dancer!=='all'&&r.dancerId!==FV.dancer)return false;
+    if(FV.mode==='level'&&resLevel(r,d)!==lvSel)return false;
+    if(FV.mode==='level'&&r.status&&r.status!=='placed'&&r.status!=='dnp')return false;
+    if(FV.mode==='adv'){var l=resLevel(r,d);if(ADV_LEVELS.indexOf(l)<0)return false;if(FV.level!=='all'&&l!==FV.level)return false;if(!isWin(r))return false;}
+    return true;});
+  var card=h('div',{class:'card stack'});
+  if(!rs.length){card.append(empty(FV.mode==='adv'?'No qualifying wins match these filters.':'No results match these filters.'));wrap.append(card);return wrap;}
+  function placeCell(r){return h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r)));}
+  function grp(r){return r.competitors===''||r.competitors==null?'—':r.competitors;}
+  function byDateDesc(a,b){return (feisBy[b.feisId].date||'').localeCompare(feisBy[a.feisId].date||'');}
+  function pl(r){return (!r.status||r.status==='placed')&&+r.place>0?+r.place:999;}
+  var head,body=[];
+  if(FV.mode==='dancer'){
+    var by={};rs.forEach(function(r){(by[r.dancerId]=by[r.dancerId]||[]).push(r);});
+    card.append(h('h2',null,Object.keys(by).length+' dancer(s) · '+rs.length+' result(s)'));
+    head=['Dancer','Date','Feis','Dance','Level','Place','In group'];
+    Object.keys(by).map(function(id){return dBy[id];}).sort(sortName).forEach(function(d){
+      by[d.id].sort(function(a,b){return byDateDesc(a,b)||DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).forEach(function(r,i){
+        body.push(h('tr',null,h('td',null,i===0?h('b',null,d.name):''),h('td',null,fmtDate(feisBy[r.feisId].date)),h('td',null,feisBy[r.feisId].name),
+          h('td',null,r.dance),h('td',null,resLevel(r,d)),placeCell(r),h('td',null,grp(r))));});});
+  }else if(FV.mode==='level'){
+    card.append(h('h2',null,(lvSel==='Open Champion'?'Champion (Open / Prelim)':lvSel)+' · '+rs.length+' result(s)'));
+    head=['Dance','Feis','Place','Dancer','In group'];
+    var lastKey='';
+    rs.slice().sort(function(a,b){return DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance)||byDateDesc(a,b)||(a.feisId===b.feisId?0:(a.feisId<b.feisId?-1:1))||pl(a)-pl(b)||sortName(dBy[a.dancerId],dBy[b.dancerId]);}).forEach(function(r){
+      var k=r.dance+'|'+r.feisId;
+      body.push(h('tr',null,h('td',null,k===lastKey?'':h('b',null,r.dance)),h('td',null,k===lastKey?'':feisBy[r.feisId].name+' · '+fmtDate(feisBy[r.feisId].date)),
+        placeCell(r),h('td',null,dBy[r.dancerId].name),h('td',null,grp(r))));lastKey=k;});
+  }else{
+    card.append(h('h2',null,rs.length+' qualifying win(s) · '+new Set(rs.map(function(r){return r.dancerId;})).size+' dancer(s)'));
+    head=['Dancer','Dance','Level','Feis','Date','Group size'];
+    rs.slice().sort(function(a,b){return sortName(dBy[a.dancerId],dBy[b.dancerId])||DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance)||byDateDesc(a,b);}).forEach(function(r){
+      body.push(h('tr',null,h('td',null,h('b',null,dBy[r.dancerId].name)),h('td',null,r.dance),h('td',null,resLevel(r,dBy[r.dancerId])),
+        h('td',null,feisBy[r.feisId].name),h('td',null,fmtDate(feisBy[r.feisId].date)),h('td',null,r.competitors===''||r.competitors==null?'not entered':r.competitors)));});
+  }
+  card.append(h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,head.map(function(x){return h('th',null,x);}))),h('tbody',null,body))));
+  wrap.append(card);return wrap;
+}
+
 /* ---------- studio: advancement ---------- */
 function viewAdvancement(){
   var wrap=h('div',{class:'stack'});
@@ -407,24 +520,24 @@ function viewAdvancement(){
     return h('tr',null,
       h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),
       h('td',null,s.ready.length?s.ready.map(function(x){
-        return h('div',null,h('span',{class:'pill win'},x.dance),' ',h('span',{class:'muted'},x.level+(x.viaPremier?' · via Premiere Prize':'')));}):'—'),
+        return h('div',null,h('span',{class:'pill win'},x.dance),' ',h('span',{class:'muted'},x.level+(x.viaPremier?' · via Premiere Prize':'')+(x.date?' · '+fmtDate(x.date):'')));}):'—'),
       h('td',null,s.progress.join(', ')||'—'),
-      h('td',null,s.premier?String(s.premier):'—'),
       h('td',null,prelimCell));});
   card.append(h('div',{class:'scroll'},h('table',null,
-    h('thead',null,h('tr',null,['Dancer','Ready to advance in','Working toward','Premiere wins','Prelim champion'].map(function(x){return h('th',null,x);}))),
+    h('thead',null,h('tr',null,['Dancer','Most recent advancement','Working towards','Preliminary champion wins'].map(function(x){return h('th',null,x);}))),
     h('tbody',null,rowsEls))));
   wrap.append(card);return wrap;
 }
 
 /* ---------- studio: year ---------- */
+var YV={mode:'dancer',dance:'Reel',level:'Beginner A',cls:''};
 function viewYear(){
   var years=Array.from(new Set(S.data.feis.map(function(f){return f.date?String(seasonOf(f.date)):'';}).filter(Boolean))).sort().reverse();
   var now=new Date(),thisYear=String(now.getMonth()>=7?now.getFullYear():now.getFullYear()-1);
   if(years.indexOf(thisYear)<0)years.unshift(thisYear);
   if(!S.year||years.indexOf(S.year)<0)S.year=years[0];
   var wrap=h('div',{class:'stack'});
-  var min=h('input',{id:'min-comp',type:'number',min:'2',max:'50',value:minComp(),style:'width:100px',
+  var min=h('input',{id:'min-comp',type:'number',min:'2',max:'50',value:minComp(),style:'width:100px',disabled:!isOwner(),
     onchange:function(e){mutate('saveSettings',{minCompetitors:e.target.value});}});
   wrap.append(h('div',{class:'card row'},
     h('label',{style:'flex:1 1 120px'},'Season',h('select',{id:'year-pick',onchange:function(e){S.year=e.target.value;render();}},years.map(function(y){return h('option',{value:y,selected:y===S.year},seasonLabel(+y)+' season');}))),
@@ -434,17 +547,53 @@ function viewYear(){
   var card=h('div',{class:'card stack'},h('h2',null,'Summary for the '+seasonLabel(+S.year)+' season'),
     h('p',{class:'muted',style:'margin:0'},'Everything entered for feiseanna from August '+S.year+' to July '+(+S.year+1)+'. Qualifying wins are 1st places in groups of at least '+minComp()+' (or with no group size entered). The Advancement tab applies the level rules.'));
   if(!rs.length){card.append(empty('No results entered for this season yet.'));wrap.append(card);return wrap;}
-  var by={};rs.forEach(function(r){(by[r.dancerId]=by[r.dancerId]||[]).push(r);});
-  var rowsEls=Object.keys(by).map(function(id){return byId(S.data.dancers,id)||{id:id,name:'Unknown dancer'};}).sort(sortName).map(function(d){
-    var list=by[d.id],wins=list.filter(isWin);
-    var firsts=list.filter(function(r){return (!r.status||r.status==='placed')&&+r.place===1;}).length;
-    var per={};wins.forEach(function(r){per[r.dance]=(per[r.dance]||0)+1;});
-    return h('tr',null,h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),
-      h('td',null,new Set(list.map(function(r){return r.feisId;})).size),h('td',null,list.length),h('td',null,firsts),
-      h('td',null,wins.length?h('span',{class:'pill win'},wins.length):'0'),
-      h('td',null,Object.keys(per).map(function(k){return k+' ×'+per[k];}).join(', ')||'—'));});
-  card.append(h('div',{class:'scroll'},h('table',null,
-    h('thead',null,h('tr',null,['Dancer','Feiseanna','Dances','1st places','Qualifying wins','Wins by dance'].map(function(x){return h('th',null,x);}))),h('tbody',null,rowsEls))));
+  var dBy={};S.data.dancers.forEach(function(d){dBy[d.id]=d;});
+  var classes=Array.from(new Set(S.data.dancers.map(function(d){return d.troupe;}).filter(Boolean))).sort();
+  if(!YV.cls||classes.indexOf(YV.cls)<0)YV.cls=classes[0]||'';
+  var modes=[['dancer','By dancer'],['team','By entire team'],['feis','By feis'],['dance','By dance'],['level','By level'],['class','By class']];
+  function opt(list,cur){return list.map(function(o){return h('option',{value:o[0],selected:o[0]===cur},o[1]);});}
+  var pick=[h('label',{style:'flex:1 1 170px'},'View',h('select',{id:'yv-mode',onchange:function(e){YV.mode=e.target.value;render();}},opt(modes,YV.mode)))];
+  if(YV.mode==='dance')pick.push(h('label',{style:'flex:1 1 170px'},'Dance',h('select',{id:'yv-dance',onchange:function(e){YV.dance=e.target.value;render();}},opt(DANCES.map(function(x){return [x,x];}),YV.dance))));
+  if(YV.mode==='level')pick.push(h('label',{style:'flex:1 1 170px'},'Level',h('select',{id:'yv-level',onchange:function(e){YV.level=e.target.value;render();}},opt(LEVELS.map(function(x){return [x,x==='Open Champion'?'Champion':x];}),YV.level))));
+  if(YV.mode==='class')pick.push(h('label',{style:'flex:1 1 170px'},'Troupe class',h('select',{id:'yv-class',onchange:function(e){YV.cls=e.target.value;render();}},opt(classes.map(function(x){return [x,x];}),YV.cls))));
+  wrap.append(h('div',{class:'card row'},pick));
+  var scopeText='';
+  if(YV.mode==='dance'){rs=rs.filter(function(r){return r.dance===YV.dance;});scopeText=YV.dance;}
+  else if(YV.mode==='level'){rs=rs.filter(function(r){return resLevel(r,dBy[r.dancerId])===YV.level;});scopeText=YV.level==='Open Champion'?'Champion':YV.level;}
+  else if(YV.mode==='class'){rs=rs.filter(function(r){var d=dBy[r.dancerId];return d&&d.troupe===YV.cls;});scopeText=YV.cls;}
+  card.querySelector('h2').textContent=(scopeText?scopeText+' · ':'')+'Summary for the '+seasonLabel(+S.year)+' season';
+  if(!rs.length){card.append(empty('No results match this view yet.'));wrap.append(card);return wrap;}
+  function tally(list){
+    var danced=list.filter(function(r){return !r.status||r.status==='placed'||r.status==='dnp';});
+    var placed=danced.filter(function(r){return (!r.status||r.status==='placed')&&+r.place>0;});
+    return {feis:new Set(list.map(function(r){return r.feisId;})).size,dancers:new Set(list.map(function(r){return r.dancerId;})).size,
+      dances:list.length,firsts:list.filter(function(r){return (!r.status||r.status==='placed')&&+r.place===1;}).length,
+      wins:list.filter(isWin).length,placedPct:danced.length?placed.length/danced.length:null};}
+  function winsBy(list){var per={};list.filter(isWin).forEach(function(r){per[r.dance]=(per[r.dance]||0)+1;});
+    return Object.keys(per).sort(function(a,b){return DANCES.indexOf(a)-DANCES.indexOf(b);}).map(function(k){return k+' ×'+per[k];}).join(', ')||'—';}
+  function table(head,rows){return h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,head.map(function(x){return h('th',null,x);}))),h('tbody',null,rows)));}
+  var t=tally(rs);
+  card.append(h('div',{class:'tiles'},
+    h('div',{class:'tile'},h('b',null,t.dancers),'Dancers'),h('div',{class:'tile'},h('b',null,t.feis),'Feiseanna'),h('div',{class:'tile'},h('b',null,t.dances),'Dances'),
+    h('div',{class:'tile'},h('b',null,t.firsts),'1st places'),h('div',{class:'tile'},h('b',null,t.wins),'Qualifying wins'),h('div',{class:'tile'},h('b',null,pct(t.placedPct)),'Placed')));
+  if(YV.mode==='team'){
+    var per={};rs.forEach(function(r){(per[r.dance]=per[r.dance]||[]).push(r);});
+    card.append(h('h3',null,'By dance'));
+    card.append(table(['Dance','Dances','1st places','Qualifying wins','Placed'],Object.keys(per).sort(function(a,b){return DANCES.indexOf(a)-DANCES.indexOf(b);}).map(function(k){var s=tally(per[k]);
+      return h('tr',null,h('td',null,k),h('td',null,s.dances),h('td',null,s.firsts),h('td',null,s.wins?h('span',{class:'pill win'},s.wins):'0'),h('td',null,pct(s.placedPct)));})));
+  }else if(YV.mode==='feis'){
+    var pf={};rs.forEach(function(r){(pf[r.feisId]=pf[r.feisId]||[]).push(r);});
+    card.append(table(['Feis','Date','Dancers','Dances','1st places','Qualifying wins','Placed','Wins by dance'],
+      Object.keys(pf).sort(function(a,b){return (feisIds[b].date||'').localeCompare(feisIds[a].date||'');}).map(function(id){var s=tally(pf[id]);
+        return h('tr',null,h('td',null,h('b',null,feisIds[id].name)),h('td',null,fmtDate(feisIds[id].date)),h('td',null,s.dancers),h('td',null,s.dances),h('td',null,s.firsts),
+          h('td',null,s.wins?h('span',{class:'pill win'},s.wins):'0'),h('td',null,pct(s.placedPct)),h('td',null,winsBy(pf[id])));})));
+  }else{
+    var by={};rs.forEach(function(r){(by[r.dancerId]=by[r.dancerId]||[]).push(r);});
+    card.append(table(['Dancer','Feiseanna','Dances','1st places','Qualifying wins','Placed','Wins by dance'],
+      Object.keys(by).map(function(id){return dBy[id]||{id:id,name:'Unknown dancer'};}).sort(sortName).map(function(d){var s=tally(by[d.id]);
+        return h('tr',null,h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),h('td',null,s.feis),h('td',null,s.dances),h('td',null,s.firsts),
+          h('td',null,s.wins?h('span',{class:'pill win'},s.wins):'0'),h('td',null,pct(s.placedPct)),h('td',null,winsBy(by[d.id])));})));
+  }
   wrap.append(card);
   var flags=rs.filter(isWin).sort(function(a,b){return (feisIds[b.feisId].date||'').localeCompare(feisIds[a.feisId].date||'');});
   var fc=h('div',{class:'card stack'},h('h2',null,'Qualifying wins'));
@@ -503,6 +652,188 @@ function delButton(label,fn){
     if(!armed){armed=true;b.textContent='Tap again to confirm';setTimeout(function(){armed=false;b.textContent=label;},4000);return;}
     fn();}},label);
   return b;
+}
+
+/* ---------- studio: attendance ---------- */
+var ATT_LABELS={going:'Going',maybe:'Maybe',notgoing:'Not going'};
+function viewAttendance(){
+  var wrap=h('div',{class:'stack'});
+  var feis=S.data.feis.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+  if(!feis.length){wrap.append(h('div',{class:'card'},empty('Add a feis first (Feiseanna tab).')));return wrap;}
+  if(!S.attFeis||!byId(feis,S.attFeis)){
+    var today=new Date().toISOString().slice(0,10);
+    var next=feis.filter(function(f){return (f.date||'')>=today;})[0];
+    S.attFeis=(next||feis[feis.length-1]).id;}
+  var map={};(S.data.attendance||[]).forEach(function(a){if(a.feisId===S.attFeis)map[a.dancerId]=a.status;});
+  var counts={going:0,maybe:0,notgoing:0,none:0};
+  S.data.dancers.forEach(function(d){counts[map[d.id]||'none']++;});
+  var f=byId(feis,S.attFeis);
+  var pick=h('select',{id:'att-feis',onchange:function(e){S.attFeis=e.target.value;render();}},
+    feis.map(function(x){return h('option',{value:x.id,selected:x.id===S.attFeis},x.name+' · '+fmtDate(x.date));}));
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Who is going'),
+    h('label',null,'Feis',pick),
+    h('div',{class:'tiles'},
+      h('div',{class:'tile'},h('b',null,counts.going),'Going'),h('div',{class:'tile'},h('b',null,counts.maybe),'Maybe'),
+      h('div',{class:'tile'},h('b',null,counts.notgoing),'Not going'),h('div',{class:'tile'},h('b',null,counts.none),'Not set'))));
+  var rows=S.data.dancers.slice().sort(sortName).map(function(d){
+    var cur=map[d.id]||'';
+    var sel=h('select',{'aria-label':'Attendance for '+d.name,disabled:!isOwner(),onchange:async function(e){
+      var y=window.scrollY;await mutate('saveAttendance',{feisId:S.attFeis,dancerId:d.id,status:e.target.value});window.scrollTo(0,y);}},
+      [['','Not set'],['going','Going'],['maybe','Maybe'],['notgoing','Not going']].map(function(o){return h('option',{value:o[0],selected:o[0]===cur},o[1]);}));
+    return h('tr',null,h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),h('td',{style:'min-width:150px'},sel));});
+  wrap.append(h('div',{class:'card stack'},h('h2',null,f.name),
+    h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,['Dancer','Status'].map(function(x){return h('th',null,x);}))),h('tbody',null,rows)))));
+  return wrap;
+}
+
+/* ---------- studio: notes ---------- */
+function viewNotes(){
+  var wrap=h('div',{class:'stack'});
+  var pick=h('select',{id:'note-dancer',onchange:function(e){S.noteDancer=e.target.value;render();}},
+    [h('option',{value:''},'All dancers (recent notes)')].concat(S.data.dancers.slice().sort(sortName).map(function(d){return h('option',{value:d.id,selected:d.id===S.noteDancer},d.name);})));
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Staff notes'),
+    h('p',{class:'muted',style:'margin:0'},'Only the studio sees notes. Families never do.'),h('label',null,'Dancer',pick)));
+  if(S.noteDancer&&byId(S.data.dancers,S.noteDancer)&&canSee('addNotes')){
+    var feisSel=h('select',{id:'note-feis'},[h('option',{value:''},'General (not about one feis)')].concat(
+      S.data.feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(f){return h('option',{value:f.id},f.name);})));
+    var who=h('input',{id:'note-author',type:'text',placeholder:'Your name',value:store('feis.staff')||''});
+    var text=h('textarea',{id:'note-text',rows:'3',placeholder:'e.g. Working on her turnout in slip jig. Ready to move up at Nicholl.'});
+    wrap.append(h('div',{class:'card stack'},h('h3',null,'Add a note'),
+      h('div',{class:'grid'},h('label',null,'About',feisSel),isOwner()?h('label',null,'From',who):h('div',{class:'muted',style:'align-self:end'},'Posting as '+((S.data.me&&S.data.me.name)||'staff'))),h('label',null,'Note',text),
+      h('div',null,h('button',{class:'primary',disabled:S.busy,onclick:function(){
+        store('feis.staff',who.value.trim());
+        mutate('addNote',{dancerId:S.noteDancer,feisId:feisSel.value,author:who.value.trim(),text:text.value});}},'Save note'))));
+  }
+  var notes=(S.data.notes||[]).filter(function(n){return !S.noteDancer||n.dancerId===S.noteDancer;})
+    .sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt));}).slice(0,S.noteDancer?200:40);
+  var list=h('div',{class:'card stack'},h('h2',null,S.noteDancer?'Notes':'Recent notes'));
+  if(!notes.length)list.append(empty('No notes yet.'));
+  notes.forEach(function(n){
+    var d=byId(S.data.dancers,n.dancerId)||{name:'Unknown dancer'},f=n.feisId?byId(S.data.feis,n.feisId):null;
+    var when=n.createdAt?new Date(n.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
+    list.append(h('div',{class:'note stack',style:'gap:4px'},
+      h('div',{class:'row between'},h('div',null,S.noteDancer?'':h('b',null,d.name+' · '),h('span',{class:'muted'},when+(n.author?' · '+n.author:'')+(f?' · '+f.name:''))),
+        isOwner()?delButton('Delete',function(){return mutate('deleteNote',{id:n.id});}):null),
+      h('div',{style:'white-space:pre-wrap'},n.text)));});
+  wrap.append(list);return wrap;
+}
+
+/* ---------- studio: analytics ---------- */
+var AN={season:'all',feis:'all',dance:'all',level:'all',troupe:'all',group:'dance',sort:null,dir:1};
+function avg(a){return a.length?a.reduce(function(s,x){return s+x;},0)/a.length:null;}
+function statsOf(rows){
+  var danced=rows.filter(function(r){return !r.status||r.status==='placed'||r.status==='dnp';});
+  var placed=danced.filter(function(r){return (!r.status||r.status==='placed')&&+r.place>0;});
+  var comps=danced.map(function(r){return +r.competitors;}).filter(function(x){return x>0;});
+  return {danced:danced.length,placedN:placed.length,
+    placedPct:danced.length?placed.length/danced.length:null,
+    podiumPct:danced.length?placed.filter(function(r){return +r.place<=3;}).length/danced.length:null,
+    firsts:placed.filter(function(r){return +r.place===1;}).length,wins:danced.filter(isWin).length,
+    avgPlace:avg(placed.map(function(r){return +r.place;})),avgGroup:avg(comps),
+    out:rows.length-danced.length};
+}
+function pct(x){return x==null?'—':Math.round(x*100)+'%';}
+function viewAnalytics(){
+  var feisBy={},dBy={};S.data.feis.forEach(function(f){feisBy[f.id]=f;});S.data.dancers.forEach(function(d){dBy[d.id]=d;});
+  var seasons=Array.from(new Set(S.data.feis.map(function(f){return f.date?String(seasonOf(f.date)):'';}).filter(Boolean))).sort().reverse();
+  var troupes=Array.from(new Set(S.data.dancers.map(function(d){return d.troupe;}).filter(Boolean))).sort();
+  var rs=S.data.results.filter(function(r){
+    var f=feisBy[r.feisId],d=dBy[r.dancerId];if(!f||!d)return false;
+    if(AN.season!=='all'&&String(seasonOf(f.date))!==AN.season)return false;
+    if(AN.feis!=='all'&&r.feisId!==AN.feis)return false;
+    if(AN.dance!=='all'&&r.dance!==AN.dance)return false;
+    if(AN.level!=='all'&&(r.level||'')!==AN.level)return false;
+    if(AN.troupe!=='all'&&d.troupe!==AN.troupe)return false;
+    return true;});
+  function sel(id,label,val,opts,key){
+    return h('label',{style:'flex:1 1 150px'},label,h('select',{id:id,onchange:function(e){AN[key]=e.target.value;AN.sort=null;render();}},
+      opts.map(function(o){return h('option',{value:o[0],selected:o[0]===val},o[1]);})));}
+  var all=[['all','All']];
+  var filters=h('div',{class:'card stack'},h('h2',null,'Analytics'),
+    h('div',{class:'row'},
+      sel('an-season','Season',AN.season,all.concat(seasons.map(function(y){return [y,seasonLabel(+y)];})),'season'),
+      sel('an-feis','Feis',AN.feis,all.concat(S.data.feis.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(f){return [f.id,f.name];})),'feis'),
+      sel('an-dance','Dance',AN.dance,all.concat(DANCES.map(function(x){return [x,x];})),'dance'),
+      sel('an-level','Level',AN.level,all.concat(LEVELS.map(function(x){return [x,x];})),'level'),
+      sel('an-troupe','Troupe class',AN.troupe,all.concat(troupes.map(function(x){return [x,x];})),'troupe'),
+      sel('an-group','Break down by',AN.group,[['dance','Dance'],['feis','Feis'],['level','Level'],['troupe','Troupe class'],['dancer','Dancer'],['judge','Judge']],'group')),
+    h('p',{class:'muted',style:'margin:0'},'Counts only dances that were danced. “Registered – did not dance” and “Missed the dance” are left out of the percentages and shown in their own column. Level is the level the dancer was at when the result was entered. A win is 1st place in a group of at least '+minComp()+'.'));
+  var wrap=h('div',{class:'stack'});wrap.append(filters);
+  if(!rs.length){wrap.append(h('div',{class:'card'},empty('No results match these filters.')));return wrap;}
+  var t=statsOf(rs);
+  wrap.append(h('div',{class:'tiles'},
+    h('div',{class:'tile'},h('b',null,t.danced),'Dances danced'),h('div',{class:'tile'},h('b',null,pct(t.placedPct)),'Placed'),
+    h('div',{class:'tile'},h('b',null,pct(t.podiumPct)),'Top 3'),h('div',{class:'tile'},h('b',null,t.firsts),'1st places'),
+    h('div',{class:'tile'},h('b',null,t.wins),'Qualifying wins')));
+  var groups={},order={},label={};
+  rs.forEach(function(r){
+    var d=dBy[r.dancerId],f=feisBy[r.feisId],k,l,o;
+    if(AN.group==='dance'){k=r.dance;l=k;o=DANCES.indexOf(k);}
+    else if(AN.group==='feis'){k=r.feisId;l=f.name;o=f.date||'';}
+    else if(AN.group==='level'){k=LEVELS.indexOf(r.level)>=0?r.level:((r.level==='Yes'||r.level==='Placed out')?'Prelim / Open Event':'Not recorded');l=k;o=LEVELS.indexOf(k)<0?(k==='Not recorded'?9:8):LEVELS.indexOf(k);}
+    else if(AN.group==='troupe'){k=d.troupe||'No class set';l=k;o=k;}
+    else if(AN.group==='dancer'){k=d.id;l=d.name;o=d.name;}
+    else{k=(r.judge||'').trim()||'(no judge entered)';l=k;o=k;}
+    (groups[k]=groups[k]||[]).push(r);label[k]=l;order[k]=o;});
+  var cols=[['label','Group'],['danced','Danced'],['placedPct','Placed'],['podiumPct','Top 3'],['firsts','1sts'],['wins','Wins'],['avgPlace','Avg place'],['avgGroup','Avg group size'],['out','Didn’t dance']];
+  var data=Object.keys(groups).map(function(k){var s=statsOf(groups[k]);s.label=label[k];s.ord=order[k];return s;});
+  var sk=AN.sort;
+  data.sort(function(a,b){
+    if(!sk)return a.ord<b.ord?-1:a.ord>b.ord?1:0;
+    var x=a[sk],y=b[sk];if(x==null)x=-1;if(y==null)y=-1;
+    if(sk==='label')return AN.dir*String(x).localeCompare(String(y));
+    return AN.dir*(y-x);});
+  function bar(p){return h('div',null,pct(p),h('div',{class:'meter'},h('span',{style:'width:'+Math.round((p||0)*100)+'%'})));}
+  var head=cols.map(function(c){return h('th',{class:'sort',title:'Sort by '+c[1],onclick:function(){
+    if(AN.sort===c[0])AN.dir=-AN.dir;else{AN.sort=c[0];AN.dir=1;}render();}},c[1]+(AN.sort===c[0]?(AN.dir===1?(c[0]==='label'?' ▲':' ▼'):(c[0]==='label'?' ▼':' ▲')):''));});
+  var body=data.map(function(s){return h('tr',null,h('td',null,s.label),h('td',null,s.danced),h('td',null,bar(s.placedPct)),h('td',null,bar(s.podiumPct)),
+    h('td',null,s.firsts),h('td',null,s.wins?h('span',{class:'pill win'},s.wins):'0'),
+    h('td',null,s.avgPlace==null?'—':s.avgPlace.toFixed(1)),h('td',null,s.avgGroup==null?'—':s.avgGroup.toFixed(1)),h('td',null,s.out||'—'));});
+  wrap.append(h('div',{class:'card stack'},h('h3',null,'By '+({dance:'dance',feis:'feis',level:'level',troupe:'troupe class',dancer:'dancer',judge:'judge'})[AN.group]+' ('+data.length+')'),
+    h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,head)),h('tbody',null,body)))));
+  return wrap;
+}
+
+/* ---------- studio: staff accounts (owner only) ---------- */
+var PERMS=[['results','Feis results and Season summary'],['advancement','Advancement'],['analytics','Analytics'],['attendance','Attendance (view only)'],['notes','View notes'],['addNotes','Add notes'],['videos','View videos']];
+function permBoxes(cur,pre){
+  var boxes={};
+  var grid=h('div',{class:'grid'},PERMS.map(function(p){
+    boxes[p[0]]=h('input',{type:'checkbox',id:pre+p[0],checked:cur.indexOf(p[0])>=0});
+    return h('label',{class:'chk'},boxes[p[0]],p[1]);}));
+  return {grid:grid,read:function(){return PERMS.map(function(p){return p[0];}).filter(function(k){return boxes[k].checked;});}};
+}
+function viewStaff(){
+  var wrap=h('div',{class:'stack'});
+  var name=h('input',{id:'staff-name',type:'text'});
+  var user=h('input',{id:'staff-user',type:'text',autocapitalize:'off',autocomplete:'off'});
+  var pw=h('input',{id:'staff-pw',type:'text',autocomplete:'off',placeholder:'8+ characters'});
+  var pb=permBoxes([],'sn-');
+  var sco=h('input',{id:'staff-scope',type:'text',autocomplete:'off',placeholder:'Blank = all dancers. Or a class word, e.g. Junior'});
+  wrap.append(h('div',{class:'card stack'},h('h2',null,'Add a staff login'),
+    h('p',{class:'muted',style:'margin:0'},'Staff sign in from “Studio sign-in” with their username and password. They only see the reports you tick, can never see family codes, and can’t change anything except adding notes (if you allow it). You stay the only person who can edit.'),
+    h('div',{class:'grid'},h('label',null,'Name',name),h('label',null,'Username',user),h('label',null,'Password',pw)),
+    h('label',null,'Only dancers in class (optional)',sco),
+    h('h3',null,'What can they see?'),pb.grid,
+    h('div',null,h('button',{class:'primary',disabled:S.busy,onclick:function(){
+      mutate('saveStaff',{staff:{name:name.value,username:user.value,password:pw.value,perms:pb.read(),scope:sco.value}});}},'Add staff login'))));
+  var list=h('div',{class:'card stack'},h('h2',null,'Staff ('+(S.data.staff||[]).length+')'));
+  if(!(S.data.staff||[]).length)list.append(empty('No staff logins yet.'));
+  (S.data.staff||[]).slice().sort(sortName).forEach(function(s){
+    var nm=h('input',{type:'text',value:s.name}),us=h('input',{type:'text',value:s.username,autocapitalize:'off'});
+    var np=h('input',{type:'text',autocomplete:'off',placeholder:'Leave blank to keep the current password'});
+    var pbs=permBoxes(s.perms,'sp'+s.id+'-');
+    var scs=h('input',{type:'text',value:s.scope||'',placeholder:'Blank = all dancers'});
+    list.append(h('details',{style:'padding-top:12px;border-top:1px solid var(--line)'},
+      h('summary',{style:'cursor:pointer'},h('b',null,s.name),' ',h('span',{class:'muted'},s.username+' · '+(s.perms.length?s.perms.length+' permission(s)':'no access')+(s.scope?' · only '+s.scope:''))),
+      h('div',{class:'stack',style:'padding-top:12px'},
+        h('div',{class:'grid'},h('label',null,'Name',nm),h('label',null,'Username',us),h('label',null,'New password',np)),
+        h('label',null,'Only dancers in class (optional)',scs),
+        h('h3',null,'What can they see?'),pbs.grid,
+        h('div',{class:'row between'},h('button',{disabled:S.busy,onclick:function(){
+          mutate('saveStaff',{staff:{id:s.id,name:nm.value,username:us.value,password:np.value,perms:pbs.read(),scope:scs.value}});}},'Save changes'),
+          delButton('Remove login',function(){return mutate('deleteStaff',{id:s.id});})))));});
+  wrap.append(list);return wrap;
 }
 
 /* ---------- studio: feiseanna ---------- */

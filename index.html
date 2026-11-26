@@ -52,6 +52,8 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);verti
 th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;white-space:nowrap}
 .pill{display:inline-block;white-space:nowrap;border-radius:999px;padding:1px 9px;font-size:.78rem;font-weight:600;background:var(--bg);border:1px solid var(--line)}
 .pill.win{background:var(--gold-bg);color:var(--gold);border-color:var(--gold)}
+.pill.flag{background:#fff3cd;color:#7a4b00;border-color:#d9a400}
+@media (prefers-color-scheme:dark){.pill.flag{background:#4a3a00;color:#ffd666;border-color:#b58900}}
 .dance-row{display:grid;grid-template-columns:minmax(130px,1.2fr) repeat(4,minmax(0,1fr));gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
 .dance-row b{font-family:var(--head);font-weight:500}
 .dance-row>div:first-child{align-self:center}
@@ -143,19 +145,25 @@ function advStatus(d){
   var prelimWins=(+d.priorPrelimWins||0);
   var seen=mine.filter(function(r){return r.dance==='Preliminary Champion'&&isWin(r);}).length;
   prelimWins=Math.max(prelimWins,seen);
-  return {ready:ready,progress:progress,premier:premierWins,prelim:prelimWins,prelimStatus:pe};
+  var needs=[];mine.forEach(function(r){if(needsSize(r)&&needs.indexOf(r.dance)<0)needs.push(r.dance);});
+  return {needs:needs,ready:ready,progress:progress,premier:premierWins,prelim:prelimWins,prelimStatus:pe};
 }
 function isWin(r){
   if(r.status&&r.status!=='placed')return false;
   if(+r.place!==1)return false;
-  if(r.competitors===''||r.competitors==null)return true;
+  if(r.competitors===''||r.competitors==null)return false;
   return +r.competitors>=minComp();
+}
+/* A 1st place with no group size can't be judged yet, so it is flagged instead of counted. */
+function needsSize(r){
+  if(r.status&&r.status!=='placed')return false;
+  return +r.place===1&&(r.competitors===''||r.competitors==null);
 }
 function placeText(r){
   if(r.status==='sick')return 'Registered – did not dance';
   if(r.status==='dnp')return 'Did not place';
   if(r.status==='missed')return 'Missed the dance';
-  return ordinal(r.place)||'—';
+  return (ordinal(r.place)||'—')+(needsSize(r)?' · needs group size':'');
 }
 function isAdmin(){return S.mode==='admin';}
 function isOwner(){return isAdmin()&&!(S.data&&S.data.role==='staff');}
@@ -297,7 +305,7 @@ function resultsByFeis(rs,title){
         h('thead',null,h('tr',null,['Dance','Place','Competitors','Judge'].map(function(x){return h('th',null,x);}))),
         h('tbody',null,list.map(function(r){return h('tr',null,
           h('td',null,r.dance),
-          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
+          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
           h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));}))))));
   });
   return card;
@@ -425,7 +433,7 @@ function viewFeisOne(){
     Object.keys(by).map(function(id){return byId(S.data.dancers,id)||{id:id,name:'Unknown dancer'};}).sort(sortName).forEach(function(d){
       by[d.id].sort(function(a,b){return DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).forEach(function(r,i){
         body.push(h('tr',null,h('td',null,i===0?d.name:''),h('td',null,i===0&&r.number?'#'+r.number:''),h('td',null,r.dance),
-          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r))),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||'')));});});
+          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r))),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||'')));});});
     card.append(h('div',{class:'scroll'},h('table',null,
       h('thead',null,h('tr',null,['Dancer','No.','Dance','Place','In group','Judge'].map(function(x){return h('th',null,x);}))),h('tbody',null,body))));
   }
@@ -462,7 +470,7 @@ function viewFeis(){
   if(FV.mode==='adv')fs.push(sel('fv-level','Level',FV.level,all.concat(ADV_LEVELS.map(function(x){return [x,x];})),'level'));
   var info={dancer:'Every dancer and every placement. Pick one dancer to see just her results.',
     level:'Everyone who danced at this level, grouped by dance, with how they placed.',
-    adv:'Every 1st place at Beginner A, Beginner B or Intermediate in a group of at least '+minComp()+' dancers. A 1st with no group size entered is included and marked.'}[FV.mode];
+    adv:'Every 1st place at Beginner A, Beginner B or Intermediate in a group of at least '+minComp()+' dancers. A 1st with no group size entered is shown in yellow as “needs group size” and doesn’t count until it’s added.'}[FV.mode];
   wrap.append(h('div',{class:'card stack'},h('div',{class:'row'},fs),h('p',{class:'muted',style:'margin:0'},info)));
   var lvSel=FV.level==='all'&&FV.mode==='level'?'Beginner A':FV.level;
   var rs=S.data.results.filter(function(r){
@@ -472,11 +480,11 @@ function viewFeis(){
     if(FV.mode==='dancer'&&FV.dancer!=='all'&&r.dancerId!==FV.dancer)return false;
     if(FV.mode==='level'&&resLevel(r,d)!==lvSel)return false;
     if(FV.mode==='level'&&r.status&&r.status!=='placed'&&r.status!=='dnp')return false;
-    if(FV.mode==='adv'){var l=resLevel(r,d);if(ADV_LEVELS.indexOf(l)<0)return false;if(FV.level!=='all'&&l!==FV.level)return false;if(!isWin(r))return false;}
+    if(FV.mode==='adv'){var l=resLevel(r,d);if(ADV_LEVELS.indexOf(l)<0)return false;if(FV.level!=='all'&&l!==FV.level)return false;if(!isWin(r)&&!needsSize(r))return false;}
     return true;});
   var card=h('div',{class:'card stack'});
   if(!rs.length){card.append(empty(FV.mode==='adv'?'No qualifying wins match these filters.':'No results match these filters.'));wrap.append(card);return wrap;}
-  function placeCell(r){return h('td',null,h('span',{class:'pill'+(isWin(r)?' win':'')},placeText(r)));}
+  function placeCell(r){return h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r)));}
   function grp(r){return r.competitors===''||r.competitors==null?'—':r.competitors;}
   function byDateDesc(a,b){return (feisBy[b.feisId].date||'').localeCompare(feisBy[a.feisId].date||'');}
   function pl(r){return (!r.status||r.status==='placed')&&+r.place>0?+r.place:999;}
@@ -498,11 +506,11 @@ function viewFeis(){
       body.push(h('tr',null,h('td',null,k===lastKey?'':h('b',null,r.dance)),h('td',null,k===lastKey?'':feisBy[r.feisId].name+' · '+fmtDate(feisBy[r.feisId].date)),
         placeCell(r),h('td',null,dBy[r.dancerId].name),h('td',null,grp(r))));lastKey=k;});
   }else{
-    card.append(h('h2',null,rs.length+' qualifying win(s) · '+new Set(rs.map(function(r){return r.dancerId;})).size+' dancer(s)'));
+    card.append(h('h2',null,rs.filter(isWin).length+' qualifying win(s) · '+rs.filter(needsSize).length+' needing a group size'));
     head=['Dancer','Dance','Level','Feis','Date','Group size'];
     rs.slice().sort(function(a,b){return sortName(dBy[a.dancerId],dBy[b.dancerId])||DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance)||byDateDesc(a,b);}).forEach(function(r){
       body.push(h('tr',null,h('td',null,h('b',null,dBy[r.dancerId].name)),h('td',null,r.dance),h('td',null,resLevel(r,dBy[r.dancerId])),
-        h('td',null,feisBy[r.feisId].name),h('td',null,fmtDate(feisBy[r.feisId].date)),h('td',null,r.competitors===''||r.competitors==null?'not entered':r.competitors)));});
+        h('td',null,feisBy[r.feisId].name),h('td',null,fmtDate(feisBy[r.feisId].date)),h('td',null,needsSize(r)?h('span',{class:'pill flag'},'needs group size'):r.competitors)));});
   }
   card.append(h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,head.map(function(x){return h('th',null,x);}))),h('tbody',null,body))));
   wrap.append(card);return wrap;
@@ -512,8 +520,16 @@ function viewFeis(){
 function viewAdvancement(){
   var wrap=h('div',{class:'stack'});
   var card=h('div',{class:'card stack'},h('h2',null,'Advancement'),
-    h('p',{class:'muted',style:'margin:0'},'A win is 1st place in a group of at least '+minComp()+' dancers; a 1st with no group size entered counts too. Each dance has its own level. Beginner A needs 1 win in a dance, Beginner B and Intermediate need 2. A Premiere Prize win advances Slip Jig and Traditional Set Dance. Preliminary Champion allows '+RULES.prelimLimit+' wins. Wins count at the level they were danced, so moving a dancer up starts that dance fresh.'));
+    h('p',{class:'muted',style:'margin:0'},'A win is 1st place in a group of at least '+minComp()+' dancers; a 1st with no group size entered is flagged “needs group size” and doesn’t count until the size is added. Each dance has its own level. Beginner A needs 1 win in a dance, Beginner B and Intermediate need 2. A Premiere Prize win advances Slip Jig and Traditional Set Dance. Preliminary Champion allows '+RULES.prelimLimit+' wins. Wins count at the level they were danced, so moving a dancer up starts that dance fresh.'));
   if(!S.data.dancers.length){card.append(empty('Add dancers first.'));wrap.append(card);return wrap;}
+  var flagged=S.data.results.filter(needsSize);
+  if(flagged.length){
+    var fb={};S.data.feis.forEach(function(f){fb[f.id]=f;});
+    card.append(h('div',{class:'note'},h('b',null,'⚠ '+flagged.length+' first place(s) need a group size. '),'These can’t count toward advancement until the size is added (families can add it, or you can under Enter results).',
+      h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,['Dancer','Dance','Feis','Date'].map(function(x){return h('th',null,x);}))),
+        h('tbody',null,flagged.slice().sort(function(a,b){var da=byId(S.data.dancers,a.dancerId)||{name:''},db=byId(S.data.dancers,b.dancerId)||{name:''};return sortName(da,db)||DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).map(function(r){var d=byId(S.data.dancers,r.dancerId)||{name:'Unknown dancer'},f=fb[r.feisId]||{name:'',date:''};
+          return h('tr',null,h('td',null,d.name),h('td',null,r.dance),h('td',null,f.name),h('td',null,fmtDate(f.date)));}))))));
+  }
   var rowsEls=S.data.dancers.slice().sort(sortName).map(function(d){
     var s=advStatus(d);
     var prelimCell=s.prelimStatus==='Placed out'||s.prelim>=RULES.prelimLimit?h('span',{class:'pill win'},'Placed out'):(s.prelim?h('span',{class:'pill'},s.prelim+' of '+RULES.prelimLimit):'—');
@@ -521,7 +537,7 @@ function viewAdvancement(){
       h('td',null,d.name,h('div',{class:'muted'},d.troupe||'')),
       h('td',null,s.ready.length?s.ready.map(function(x){
         return h('div',null,h('span',{class:'pill win'},x.dance),' ',h('span',{class:'muted'},x.level+(x.viaPremier?' · via Premiere Prize':'')+(x.date?' · '+fmtDate(x.date):'')));}):'—'),
-      h('td',null,s.progress.join(', ')||'—'),
+      h('td',null,s.progress.join(', ')||(s.needs.length?'':'—'),s.needs.length?[s.progress.length?' ':'',h('span',{class:'pill flag'},'Needs group size: '+s.needs.join(', '))]:null),
       h('td',null,prelimCell));});
   card.append(h('div',{class:'scroll'},h('table',null,
     h('thead',null,h('tr',null,['Dancer','Most recent advancement','Working towards','Preliminary champion wins'].map(function(x){return h('th',null,x);}))),
@@ -545,7 +561,7 @@ function viewYear(){
   var feisIds={};S.data.feis.forEach(function(f){if(f.date&&String(seasonOf(f.date))===S.year)feisIds[f.id]=f;});
   var rs=S.data.results.filter(function(r){return feisIds[r.feisId];});
   var card=h('div',{class:'card stack'},h('h2',null,'Summary for the '+seasonLabel(+S.year)+' season'),
-    h('p',{class:'muted',style:'margin:0'},'Everything entered for feiseanna from August '+S.year+' to July '+(+S.year+1)+'. Qualifying wins are 1st places in groups of at least '+minComp()+' (or with no group size entered). The Advancement tab applies the level rules.'));
+    h('p',{class:'muted',style:'margin:0'},'Everything entered for feiseanna from August '+S.year+' to July '+(+S.year+1)+'. Qualifying wins are 1st places in groups of at least '+minComp()+' (a 1st with no group size is flagged below until the size is added). The Advancement tab applies the level rules.'));
   if(!rs.length){card.append(empty('No results entered for this season yet.'));wrap.append(card);return wrap;}
   var dBy={};S.data.dancers.forEach(function(d){dBy[d.id]=d;});
   var classes=Array.from(new Set(S.data.dancers.map(function(d){return d.troupe;}).filter(Boolean))).sort();
@@ -602,7 +618,13 @@ function viewYear(){
     h('thead',null,h('tr',null,['Dancer','Dance','Feis','Competitors','Judge'].map(function(x){return h('th',null,x);}))),
     h('tbody',null,flags.map(function(r){var d=byId(S.data.dancers,r.dancerId)||{name:'Unknown dancer'};
       return h('tr',null,h('td',null,d.name),h('td',null,r.dance),h('td',null,feisIds[r.feisId].name),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));})))));
-  wrap.append(fc);return wrap;
+  wrap.append(fc);
+  var nz=rs.filter(needsSize);
+  if(nz.length){var nc=h('div',{class:'card stack'},h('h2',null,'Needs group size ('+nz.length+')'),h('p',{class:'muted',style:'margin:0'},'First places with no group size entered. They aren’t counted as wins until the size is added.'));
+    nc.append(h('div',{class:'scroll'},h('table',null,h('thead',null,h('tr',null,['Dancer','Dance','Feis','Date'].map(function(x){return h('th',null,x);}))),
+      h('tbody',null,nz.slice().sort(function(a,b){return sortName(dBy[a.dancerId]||{name:''},dBy[b.dancerId]||{name:''})||DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).map(function(r){return h('tr',null,h('td',null,(dBy[r.dancerId]||{name:'Unknown dancer'}).name),h('td',null,r.dance),h('td',null,feisIds[r.feisId].name),h('td',null,fmtDate(feisIds[r.feisId].date)));})))));
+    wrap.append(nc);}
+  return wrap;
 }
 
 /* ---------- studio: dancers ---------- */

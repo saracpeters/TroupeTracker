@@ -315,9 +315,9 @@ function resultsByFeis(rs,title){
     card.append(h('div',null,
       h('h3',null,f.name,' ',h('span',{class:'muted'},fmtDate(f.date))),
       h('div',{class:'scroll'},h('table',null,
-        h('thead',null,h('tr',null,['Dance','Place','Competitors','Judge'].map(function(x){return h('th',null,x);}))),
+        h('thead',null,h('tr',null,['Dance','Level','Place','# of Competitors','Judge'].map(function(x){return h('th',null,x);}))),
         h('tbody',null,list.map(function(r){return h('tr',null,
-          h('td',null,r.dance),
+          h('td',null,r.dance),h('td',null,resLevel(r,byId(S.data.dancers,r.dancerId))),
           h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
           h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));}))))));
   });

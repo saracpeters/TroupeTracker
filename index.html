@@ -57,6 +57,8 @@ th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 .dance-row{display:grid;grid-template-columns:minmax(130px,1.2fr) repeat(4,minmax(0,1fr));gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
 .dance-row b{font-family:var(--head);font-weight:500}
 .dance-row>div:first-child{align-self:center}
+.dchk{display:flex;gap:10px;align-items:center;cursor:pointer;margin:0}.dchk input{width:20px;height:20px;flex:none;margin:0;accent-color:var(--accent,#2a7)}
+.dance-row.off{opacity:.45}.dance-row.off .dchk{opacity:1}.dance-row.off input:not(.cb),.dance-row.off select{background:var(--line);cursor:not-allowed}
 @media (max-width:640px){.dance-row{grid-template-columns:1fr 1fr}.dance-row>div:first-child{grid-column:1/-1}}
 .msg{padding:10px 12px;border-radius:8px;background:var(--gold-bg);border:1px solid var(--gold)}
 .ok{color:var(--accent);font-weight:600}
@@ -78,7 +80,7 @@ th.sort{cursor:pointer;text-decoration:underline}
 <div id="app"><div class="wrap"><p class="muted" style="padding-block:24px">Loading…</p></div></div>
 <noscript><div class="wrap"><p>This page needs JavaScript to show feis results.</p></div></noscript>
 
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwbylThiV57qjO_RVWM8LTl66FqBgT2MXBL7uQRY6_Jvu3pAvLUOsitk13MnJDAxEdS/exec";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/X/exec";</script>
 <script>
 (function(){
 'use strict';
@@ -271,6 +273,16 @@ function loginView(){
 
 /* ---------- family ---------- */
 function currentDancer(){return S.data?byId(S.data.dancers,S.dancerId):null;}
+/* Open Championship dancers: the Heavy & Light Round grouping follows their troupe class. */
+function champGroup(d){var l=(d.troupe||'').toLowerCase();if(l.indexOf('champ')<0)return null;
+  if(/\bodd\b/.test(l))return 'Treble Jig / Reel / Hornpipe Modern Set';
+  if(/\beven\b/.test(l))return 'Hornpipe / Slip Jig / Treble Jig Modern Set';return null;}
+function champCard(d){
+  var g=champGroup(d);if(!g&&!d.setType&&!d.setSpeed)return null;
+  return h('div',{class:'card stack'},h('h2',null,'Championship dances'),
+    h('div',{class:'grid'},info('Champ Event - Heavy & Light Round Grouping',g||'Not set'),info('Modern Set Dance Type',d.setType||'Not set'),info('Modern Set Dance & Speed',d.setSpeed||'Not set')),
+    h('p',{class:'muted',style:'margin:0'},'At championships and Nationals the Modern Set Dance and its speed are danced in addition to the grouping.'));
+}
 function info(l,v){return h('div',null,h('div',{class:'muted'},l),h('div',{style:'font-weight:500'},v));}
 
 function viewMine(){
@@ -280,7 +292,7 @@ function viewMine(){
   return h('div',{class:'stack'},
     h('div',{class:'card stack'},h('h2',null,d.name),
       h('div',{class:'grid'},info('Troupe class',d.troupe||'Not set'),info('Class times',d.classTimes||'Not set'))),
-    levelsCard(d),resultsByFeis(rs,'Past results'),videosCard(d));
+    champCard(d),levelsCard(d),resultsByFeis(rs,'Past results'),videosCard(d));
 }
 
 function levelsCard(d){
@@ -367,7 +379,7 @@ function viewEntry(){
   if(F.loadedKey!==key){
     F.loadedKey=key;F.rows={};F.status='';F.ok=false;F.number='';
     var ex=S.data.results.filter(function(r){return r.feisId===F.feisId&&r.dancerId===d.id;});
-    ex.forEach(function(r){F.rows[r.dance]={competitors:r.competitors,place:r.place,judge:r.judge||'',status:r.status||'placed'};});
+    ex.forEach(function(r){F.rows[r.dance]={on:true,competitors:r.competitors,place:r.place,judge:r.judge||'',status:r.status||'placed'};});
     if(ex.length)F.number=ex[0].number;
   }
   var fsel=h('select',{id:'entry-feis',onchange:function(e){F.feisId=e.target.value;F.loadedKey='';render();}},
@@ -381,20 +393,22 @@ function viewEntry(){
   if(!feis)return wrap;
   var list=dancesFor(feis);
   wrap.append(h('div',{class:'card'},
-    h('p',{class:'muted',style:'margin:0 0 4px'},(FEIS_TYPES[feis.type]||'Feis')+'. Fill in only the dances this dancer entered. Competitors means the number in the dancer’s age group for that dance. Choose “Did not place”, “Registered – did not dance” or “Missed the dance” when there is no place. Clearing a dance and saving removes it.'),
+    h('p',{class:'muted',style:'margin:0 0 4px'},(FEIS_TYPES[feis.type]||'Feis')+'. Tick the box beside each dance this dancer registered for; the rest stay greyed out. Competitors means the number in the dancer’s age group for that dance. Choose “Did not place”, “Registered – did not dance” or “Missed the dance” when there is no place. Unticking a dance and saving removes it.'),
     list.map(function(dn){
       var r=F.rows[dn]||{};var id=slug(dn);var st=r.status||'placed';
       function set(f){return function(e){var o=Object.assign({},F.rows[dn]||{});o[f]=e.target.value;F.rows[dn]=o;};}
       var lv=levelOf(d,dn);
       var tag=lv&&lv!=='x'?h('div',{class:'muted'},lv==='No'||lv==='Placed out'?(lv==='No'?'Not eligible':'Placed out'):lv):null;
-      var stSel=h('select',{id:'s-'+id,onchange:function(e){set('status')(e);render();}},
+      var on=!!r.on;
+      var stSel=h('select',{id:'s-'+id,disabled:!on,onchange:function(e){set('status')(e);render();}},
         [['placed','Placed'],['dnp','Did not place'],['sick','Registered – did not dance'],['missed','Missed the dance']].map(function(o){return h('option',{value:o[0],selected:o[0]===st},o[1]);}));
       var placed=st==='placed';
-      return h('div',{class:'dance-row'},h('div',null,h('b',null,dn),tag),
+      var cb=h('input',{class:'cb',type:'checkbox',id:'on-'+id,checked:on,onchange:function(e){var o=Object.assign({},F.rows[dn]||{});o.on=e.target.checked;F.rows[dn]=o;render();}});
+      return h('div',{class:'dance-row'+(on?'':' off')},h('div',null,h('label',{class:'dchk'},cb,h('b',null,dn)),tag),
         h('label',null,'Result',stSel),
-        h('label',null,'Place',h('input',{id:'p-'+id,type:'number',min:'1',inputmode:'numeric',value:placed?r.place:'',disabled:!placed,oninput:set('place')})),
-        h('label',null,'Competitors',h('input',{id:'c-'+id,type:'number',min:'1',inputmode:'numeric',value:r.competitors,oninput:set('competitors')})),
-        h('label',null,'Judge',h('input',{id:'j-'+id,type:'text',maxlength:'80',value:r.judge,oninput:set('judge')})));})));
+        h('label',null,'Place',h('input',{id:'p-'+id,type:'number',min:'1',inputmode:'numeric',value:placed?r.place:'',disabled:!on||!placed,oninput:set('place')})),
+        h('label',null,'Competitors',h('input',{id:'c-'+id,type:'number',min:'1',inputmode:'numeric',value:r.competitors,disabled:!on,oninput:set('competitors')})),
+        h('label',null,'Judge',h('input',{id:'j-'+id,type:'text',maxlength:'80',value:r.judge,disabled:!on,oninput:set('judge')})));})));
   var status=h('span',{class:F.ok?'ok':'err'},F.status);
   wrap.append(h('div',{class:'row',style:'align-items:center'},
     h('button',{class:'primary',disabled:S.busy,onclick:function(){saveEntry(d,list,status);}},S.busy?'Saving…':'Save results'),status));
@@ -402,7 +416,7 @@ function viewEntry(){
 }
 async function saveEntry(d,list,statusEl){
   var F=S.form;
-  var rows=list.map(function(dn){var r=F.rows[dn]||{};return {dance:dn,competitors:r.competitors,place:r.status&&r.status!=='placed'?'':r.place,judge:r.judge,status:r.status||'placed'};});
+  var rows=list.map(function(dn){var r=F.rows[dn]||{};if(!r.on)r={};return {dance:dn,competitors:r.competitors,place:r.status&&r.status!=='placed'?'':r.place,judge:r.judge,status:r.status||'placed'};});
   F.status='Saving…';F.ok=false;statusEl.className='muted';statusEl.textContent='Saving…';
   var r=await run(function(){return api('saveResults',Object.assign(authPayload(),{dancerId:d.id,feisId:F.feisId,number:F.number,rows:rows}));});
   if(S.error){F.status=S.error;S.error='';F.ok=false;statusEl.className='err';statusEl.textContent=F.status;return;}
@@ -635,7 +649,9 @@ function dancerFields(d,pre){
     troupe:h('input',{id:pre+'troupe',type:'text',value:d.troupe,placeholder:'e.g. Beginner A Group 1'}),
     classTimes:h('input',{id:pre+'times',type:'text',value:d.classTimes,placeholder:'e.g. Tue 5:30–6:30, Sat 10:00'}),
     code:h('input',{id:pre+'code',type:'text',value:d.code}),
-    wins:h('input',{id:pre+'wins',type:'number',min:'0',max:'20',value:d.priorPrelimWins||0})};
+    wins:h('input',{id:pre+'wins',type:'number',min:'0',max:'20',value:d.priorPrelimWins||0}),
+    setType:h('input',{id:pre+'settype',type:'text',value:d.setType||'',placeholder:'Champions only'}),
+    setSpeed:h('input',{id:pre+'setspeed',type:'text',value:d.setSpeed||'',placeholder:'e.g. Garden of Daisies 138'})};
   var lv={};
   var lvGrid=h('div',{class:'grid'},DANCES.map(function(dn){
     var cur=(d.levels&&d.levels[dn])||'';
@@ -645,9 +661,12 @@ function dancerFields(d,pre){
   return {f:f,grid:h('div',{class:'stack'},
       h('div',{class:'grid'},h('label',null,'Name',f.name),h('label',null,'Troupe class',f.troupe),
         h('label',null,'Class times',f.classTimes),h('label',null,'Family code',f.code),h('label',null,'Prelim wins before this year',f.wins)),
+      h('h3',null,'Championship dances'),
+      h('div',{class:'grid'},h('label',null,'Modern Set Dance Type',f.setType),h('label',null,'Modern Set Dance & Speed',f.setSpeed)),
+      h('p',{class:'muted',style:'margin:0'},'The Heavy & Light Round grouping is set automatically from the troupe class (Champion – Odd or Champion – Even).'),
       h('h3',null,'Level in each dance'),lvGrid),
     read:function(id){var levels={};DANCES.forEach(function(dn){levels[dn]=lv[dn].value;});
-      return {id:id,name:f.name.value,troupe:f.troupe.value,classTimes:f.classTimes.value,code:f.code.value,priorPrelimWins:f.wins.value,levels:levels};}};
+      return {id:id,name:f.name.value,troupe:f.troupe.value,classTimes:f.classTimes.value,code:f.code.value,priorPrelimWins:f.wins.value,levels:levels,setType:f.setType.value,setSpeed:f.setSpeed.value};}};
 }
 function viewDancers(){
   var wrap=h('div',{class:'stack'});
@@ -661,7 +680,7 @@ function viewDancers(){
   S.data.dancers.slice().sort(sortName).forEach(function(d){
     var ef=dancerFields(d,'d'+d.id+'-');
     var det=h('details',{style:'padding-top:12px;border-top:1px solid var(--line)'},
-      h('summary',{style:'cursor:pointer'},h('b',null,d.name),' ',h('span',{class:'muted'},(d.troupe||'No troupe class')+' · code '+d.code)),
+      h('summary',{style:'cursor:pointer'},h('b',null,d.name),' ',h('span',{class:'muted'},(d.troupe||'No troupe class')+(champGroup(d)?' · '+champGroup(d):'')+' · code '+d.code)),
       h('div',{class:'stack',style:'padding-top:12px'},ef.grid,
         h('div',{class:'row between'},h('button',{disabled:S.busy,onclick:function(){mutate('saveDancer',{dancer:ef.read(d.id)});}},'Save changes'),
           delButton('Remove dancer',function(){return mutate('deleteDancer',{id:d.id});}))));

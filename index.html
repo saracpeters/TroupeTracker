@@ -275,12 +275,13 @@ function loginView(){
 function currentDancer(){return S.data?byId(S.data.dancers,S.dancerId):null;}
 /* Open Championship dancers: the Heavy & Light Round grouping follows their troupe class. */
 function champGroup(d){var l=(d.troupe||'').toLowerCase();if(l.indexOf('champ')<0)return null;
-  if(/\bodd\b/.test(l))return 'Treble Jig / Reel / Hornpipe';
-  if(/\beven\b/.test(l))return 'Hornpipe / Slip Jig / Treble Jig';return null;}
+  if(/\bodd\b/.test(l))return 'Treble Jig / Reel';
+  if(/\beven\b/.test(l))return 'Hornpipe / Slip Jig';return null;}
+function champSet(d){var g=champGroup(d);return g?(g.indexOf('Reel')>=0?'Hornpipe':'Treble Jig'):(d.setType||'');}
 function champCard(d){
   var g=champGroup(d);if(!g&&!d.setType&&!d.setSpeed)return null;
   return h('div',{class:'card stack'},h('h2',null,'Championship dances'),
-    h('div',{class:'grid'},info('Champ Event - Heavy & Light Round Grouping',g||'Not set'),info('Modern Set Dance Type',d.setType||(g?'Modern Set':'Not set')),info('Modern Set Dance & Speed',d.setSpeed||'Not set')),
+    h('div',{class:'grid'},info('Champ Event - Heavy & Light Round Grouping',g||'Not set'),info('Modern Set Dance Type',champSet(d)||'Not set'),info('Modern Set Dance & Speed',d.setSpeed||'Not set')),
     h('p',{class:'muted',style:'margin:0'},'At championships and Nationals the Modern Set Dance and its speed are danced in addition to the grouping.'));
 }
 function info(l,v){return h('div',null,h('div',{class:'muted'},l),h('div',{style:'font-weight:500'},v));}
@@ -650,7 +651,7 @@ function dancerFields(d,pre){
     classTimes:h('input',{id:pre+'times',type:'text',value:d.classTimes,placeholder:'e.g. Tue 5:30–6:30, Sat 10:00'}),
     code:h('input',{id:pre+'code',type:'text',value:d.code}),
     wins:h('input',{id:pre+'wins',type:'number',min:'0',max:'20',value:d.priorPrelimWins||0}),
-    setType:h('input',{id:pre+'settype',type:'text',value:d.setType||'',placeholder:'Champions only'}),
+    setType:h('input',{id:pre+'settype',type:'text',value:d.setType||'',placeholder:'Automatic for Champ Odd / Even'}),
     setSpeed:h('input',{id:pre+'setspeed',type:'text',value:d.setSpeed||'',placeholder:'e.g. Garden of Daisies 138'})};
   var lv={};
   var lvGrid=h('div',{class:'grid'},DANCES.map(function(dn){

@@ -53,7 +53,8 @@ th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 .pill{display:inline-block;white-space:nowrap;border-radius:999px;padding:1px 9px;font-size:.78rem;font-weight:600;background:var(--bg);border:1px solid var(--line)}
 .pill.win{background:var(--gold-bg);color:var(--gold);border-color:var(--gold)}
 .pill.flag{background:#fff3cd;color:#7a4b00;border-color:#d9a400}
-@media (prefers-color-scheme:dark){.pill.flag{background:#4a3a00;color:#ffd666;border-color:#b58900}}
+.pill.champ{background:#ece4fb;color:#4b2a8a;border-color:#8a63d2}
+@media (prefers-color-scheme:dark){.pill.flag{background:#4a3a00;color:#ffd666;border-color:#b58900}.pill.champ{background:#35235e;color:#d9c6ff;border-color:#8a63d2}}
 .dance-row{display:grid;grid-template-columns:minmax(130px,1.2fr) repeat(4,minmax(0,1fr));gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
 .dance-row b{font-family:var(--head);font-weight:500}
 .dance-row>div:first-child{align-self:center}
@@ -150,7 +151,16 @@ function advStatus(d){
   var needs=[];mine.forEach(function(r){if(needsSize(r)&&needs.indexOf(r.dance)<0)needs.push(r.dance);});
   return {needs:needs,ready:ready,progress:progress,premier:premierWins,prelim:prelimWins,prelimStatus:pe};
 }
+/* A 1st at Open Champion can't advance any further: it gets its own colour and no win / group-size flag. */
+function isTop(r){
+  if(r.status&&r.status!=='placed')return false;
+  if(+r.place!==1)return false;
+  if(r.dance==='Preliminary Champion'||r.dance==='Premiere Prize')return false;
+  return resLevel(r,byId(S.data.dancers,r.dancerId))==='Open Champion';
+}
+function pillCls(r){return isTop(r)?' champ':isWin(r)?' win':needsSize(r)?' flag':'';}
 function isWin(r){
+  if(isTop(r))return false;
   if(r.status&&r.status!=='placed')return false;
   if(+r.place!==1)return false;
   if(r.competitors===''||r.competitors==null)return false;
@@ -159,12 +169,14 @@ function isWin(r){
 /* A 1st place with no group size can't be judged yet, so it is flagged instead of counted. */
 function needsSize(r){
   if(r.status&&r.status!=='placed')return false;
+  if(isTop(r))return false;
   return +r.place===1&&(r.competitors===''||r.competitors==null);
 }
 function placeText(r){
   if(r.status==='sick')return 'Registered – did not dance';
   if(r.status==='dnp')return 'Did not place';
   if(r.status==='missed')return 'Missed the dance';
+  if(isTop(r))return '1st · Open Champion';
   return (ordinal(r.place)||'—')+(needsSize(r)?' · needs group size':'');
 }
 function isAdmin(){return S.mode==='admin';}
@@ -318,7 +330,7 @@ function resultsByFeis(rs,title){
         h('thead',null,h('tr',null,['Dance','Level','Place','# of Competitors','Judge'].map(function(x){return h('th',null,x);}))),
         h('tbody',null,list.map(function(r){return h('tr',null,
           h('td',null,r.dance),h('td',null,resLevel(r,byId(S.data.dancers,r.dancerId))),
-          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
+          h('td',null,h('span',{class:'pill'+pillCls(r)},placeText(r)),isWin(r)?' ':'',isWin(r)?h('span',{class:'muted'},'counts as a win'):''),
           h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||''));}))))));
   });
   return card;
@@ -448,7 +460,7 @@ function viewFeisOne(){
     Object.keys(by).map(function(id){return byId(S.data.dancers,id)||{id:id,name:'Unknown dancer'};}).sort(sortName).forEach(function(d){
       by[d.id].sort(function(a,b){return DANCES.indexOf(a.dance)-DANCES.indexOf(b.dance);}).forEach(function(r,i){
         body.push(h('tr',null,h('td',null,i===0?d.name:''),h('td',null,i===0&&r.number?'#'+r.number:''),h('td',null,r.dance),
-          h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r))),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||'')));});});
+          h('td',null,h('span',{class:'pill'+pillCls(r)},placeText(r))),h('td',null,r.competitors===''?'—':r.competitors),h('td',null,r.judge||'')));});});
     card.append(h('div',{class:'scroll'},h('table',null,
       h('thead',null,h('tr',null,['Dancer','No.','Dance','Place','In group','Judge'].map(function(x){return h('th',null,x);}))),h('tbody',null,body))));
   }
@@ -499,7 +511,7 @@ function viewFeis(){
     return true;});
   var card=h('div',{class:'card stack'});
   if(!rs.length){card.append(empty(FV.mode==='adv'?'No qualifying wins match these filters.':'No results match these filters.'));wrap.append(card);return wrap;}
-  function placeCell(r){return h('td',null,h('span',{class:'pill'+(isWin(r)?' win':needsSize(r)?' flag':'')},placeText(r)));}
+  function placeCell(r){return h('td',null,h('span',{class:'pill'+pillCls(r)},placeText(r)));}
   function grp(r){return r.competitors===''||r.competitors==null?'—':r.competitors;}
   function byDateDesc(a,b){return (feisBy[b.feisId].date||'').localeCompare(feisBy[a.feisId].date||'');}
   function pl(r){return (!r.status||r.status==='placed')&&+r.place>0?+r.place:999;}
